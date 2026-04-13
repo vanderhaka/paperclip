@@ -589,6 +589,8 @@ export function issueRoutes(
       originId: req.query.originId as string | undefined,
       includeRoutineExecutions:
         req.query.includeRoutineExecutions === "true" || req.query.includeRoutineExecutions === "1",
+      includeAncestors:
+        req.query.includeAncestors === "true" || req.query.includeAncestors === "1",
       q: req.query.q as string | undefined,
       limit,
     });

@@ -28,6 +28,8 @@ interface IssueRowProps {
   onArchive?: () => void;
   archiveDisabled?: boolean;
   className?: string;
+  // When true, render as a non-clickable header (used for inbox ancestor context rows).
+  asHeader?: boolean;
 }
 
 export function IssueRow({
@@ -46,27 +48,24 @@ export function IssueRow({
   onArchive,
   archiveDisabled,
   className,
+  asHeader = false,
 }: IssueRowProps) {
   const issuePathId = issue.identifier ?? issue.id;
   const identifier = issue.identifier ?? issue.id.slice(0, 8);
-  const showUnreadSlot = unreadState !== null;
+  const showUnreadSlot = unreadState !== null && !asHeader;
   const showUnreadDot = unreadState === "visible" || unreadState === "fading";
   const selectedStatusClass = selected ? "!text-muted-foreground !border-muted-foreground" : undefined;
   const detailState = withIssueDetailHeaderSeed(issueLinkState, issue);
+  const sharedClassName = cn(
+    "group flex items-start gap-2 border-b border-border py-2.5 pl-2 pr-3 text-sm no-underline text-inherit transition-colors last:border-b-0 sm:items-center sm:py-2 sm:pl-1",
+    asHeader
+      ? "cursor-default bg-muted/30 text-muted-foreground"
+      : (selected ? "hover:bg-transparent" : "hover:bg-accent/50"),
+    className,
+  );
 
-  return (
-    <Link
-      to={createIssueDetailPath(issuePathId)}
-      state={detailState}
-      disableIssueQuicklook
-      data-inbox-issue-link
-      onClickCapture={() => rememberIssueDetailLocationState(issuePathId, detailState)}
-      className={cn(
-        "group flex items-start gap-2 border-b border-border py-2.5 pl-2 pr-3 text-sm no-underline text-inherit transition-colors last:border-b-0 sm:items-center sm:py-2 sm:pl-1",
-        selected ? "hover:bg-transparent" : "hover:bg-accent/50",
-        className,
-      )}
-    >
+  const innerContent = (
+    <>
       <span className="shrink-0 pt-px sm:hidden">
         {mobileLeading ?? <StatusIcon status={issue.status} className={selectedStatusClass} />}
       </span>
@@ -162,6 +161,27 @@ export function IssueRow({
           )}
         </span>
       ) : null}
+    </>
+  );
+
+  if (asHeader) {
+    return (
+      <div className={sharedClassName} data-inbox-issue-header>
+        {innerContent}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      to={createIssueDetailPath(issuePathId)}
+      state={detailState}
+      disableIssueQuicklook
+      data-inbox-issue-link
+      onClickCapture={() => rememberIssueDetailLocationState(issuePathId, detailState)}
+      className={sharedClassName}
+    >
+      {innerContent}
     </Link>
   );
 }

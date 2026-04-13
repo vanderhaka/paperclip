@@ -1,0 +1,127 @@
+// Seed demo scenarios to verify inbox ancestor-nesting end-to-end.
+//
+// Scenario 1 — parent NOT touched by user, child IS (ancestor header case).
+// Scenario 2 — 3-level chain (CEO → manager → engineer) with only the leaf
+//              touched by the user (grandparent + parent both as ancestors).
+//
+// Run: pnpm --filter @paperclipai/server exec tsx ./scripts/seed-nesting-demo.ts
+
+import { createDb, companies, agents, issues } from "@paperclipai/db";
+import { and, eq, like } from "drizzle-orm";
+import { issueService } from "../src/services/issues.ts";
+
+const REAL_USER_ID = "GLcgAQMPQNKcLkxEm5M4PMh0mh6odDDe"; // James
+
+const db = createDb("postgres://paperclip:paperclip@127.0.0.1:54329/paperclip");
+
+async function main() {
+  const [company] = await db
+    .select({ id: companies.id, name: companies.name })
+    .from(companies)
+    .limit(1);
+  if (!company) {
+    console.error("No company found");
+    process.exit(1);
+  }
+  console.log(`company: ${company.name}`);
+
+  // Hide previous demo issues (soft delete via hiddenAt — the list endpoint
+  // already filters on `hiddenAt IS NULL`, so this effectively removes them
+  // from the inbox without running into FK constraints from comments/activity).
+  const hideResult = await db
+    .update(issues)
+    .set({ hiddenAt: new Date() })
+    .where(and(eq(issues.companyId, company.id), like(issues.title, "[demo]%")));
+  console.log(`hid previous demo issues (update result: ${JSON.stringify(hideResult)})`);
+
+  const agentRows = await db
+    .select({ id: agents.id, name: agents.name })
+    .from(agents)
+    .where(eq(agents.companyId, company.id));
+  const byName = (name: string) => {
+    const a = agentRows.find((r) => r.name === name);
+    if (!a) throw new Error(`Missing agent: ${name}`);
+    return a;
+  };
+  const ceo = byName("CEO");
+  const cto = byName("CTO");
+  const eng1 = byName("Software Engineer");
+  const eng2 = byName("Software Engineer 2");
+  const eng3 = byName("Software Engineer 3");
+
+  const svc = issueService(db);
+
+  // ---------- Scenario 1: parent = CEO, children = engineers ----------
+  // Parent created by local-board (NOT the logged-in user). Children created
+  // BY the logged-in user, so they land in his "Mine" inbox. The ancestor walk
+  // should pull the parent in as a muted header.
+  console.log("\nScenario 1: ancestor header case");
+  const s1Parent = await svc.create(company.id, {
+    title: "[demo] Scenario 1 — CEO rollout plan (parent)",
+    description: "Assigned to CEO, created by local-board. Should appear as a MUTED ancestor header in James's inbox because a child below IS in his inbox.",
+    status: "in_progress",
+    priority: "high",
+    assigneeAgentId: ceo.id,
+    createdByUserId: "local-board",
+  });
+  console.log(`  parent: ${s1Parent.identifier} (assignee CEO, creator local-board)`);
+
+  for (const [idx, worker] of [eng1, eng2, eng3].entries()) {
+    const child = await svc.create(company.id, {
+      title: `[demo] S1 subtask ${idx + 1}: ${worker.name}`,
+      description: "Touched by James — should appear in his inbox under the ancestor parent.",
+      status: idx === 0 ? "todo" : idx === 1 ? "in_progress" : "blocked",
+      priority: "medium",
+      assigneeAgentId: worker.id,
+      createdByUserId: REAL_USER_ID,
+    });
+    // Link as child (second write because validator may reject parentId + new)
+    await db
+      .update(issues)
+      .set({ parentId: s1Parent.id })
+      .where(eq(issues.id, child.id));
+    console.log(`  child:  ${child.identifier} (assignee ${worker.name}, creator James)`);
+  }
+
+  // ---------- Scenario 2: 3-level chain ----------
+  console.log("\nScenario 2: 3-level chain");
+  const s2Root = await svc.create(company.id, {
+    title: "[demo] Scenario 2 — Root task (CEO)",
+    description: "Grandparent, NOT in James's inbox directly.",
+    status: "in_progress",
+    priority: "high",
+    assigneeAgentId: ceo.id,
+    createdByUserId: "local-board",
+  });
+  const s2Mid = await svc.create(company.id, {
+    title: "[demo] Scenario 2 — Mid task (CTO)",
+    description: "Parent, NOT in James's inbox directly.",
+    status: "in_progress",
+    priority: "medium",
+    assigneeAgentId: cto.id,
+    createdByUserId: "local-board",
+  });
+  await db.update(issues).set({ parentId: s2Root.id }).where(eq(issues.id, s2Mid.id));
+
+  const s2Leaf = await svc.create(company.id, {
+    title: "[demo] Scenario 2 — Leaf task (engineer)",
+    description: "Touched by James — only this should be in base inbox set.",
+    status: "todo",
+    priority: "medium",
+    assigneeAgentId: eng1.id,
+    createdByUserId: REAL_USER_ID,
+  });
+  await db.update(issues).set({ parentId: s2Mid.id }).where(eq(issues.id, s2Leaf.id));
+  console.log(`  root: ${s2Root.identifier} → mid: ${s2Mid.identifier} → leaf: ${s2Leaf.identifier}`);
+
+  console.log("\nDone. Refresh http://127.0.0.1:3100 and check the 'Mine' tab.");
+  console.log("Expected:");
+  console.log("  • Scenario 1 parent shown as MUTED ancestor row with 3 engineer children nested");
+  console.log("  • Scenario 2 shows 3-level nesting: Root → Mid → Leaf");
+  process.exit(0);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

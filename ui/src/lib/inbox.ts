@@ -20,6 +20,7 @@ export const READ_ITEMS_KEY = "paperclip:inbox:read-items";
 export const INBOX_LAST_TAB_KEY = "paperclip:inbox:last-tab";
 export const INBOX_ISSUE_COLUMNS_KEY = "paperclip:inbox:issue-columns";
 export const INBOX_NESTING_KEY = "paperclip:inbox:nesting";
+export const INBOX_COLLAPSED_PARENTS_KEY = "paperclip:inbox:collapsed-parents";
 export const INBOX_GROUP_BY_KEY = "paperclip:inbox:group-by";
 export const INBOX_FILTER_PREFERENCES_KEY_PREFIX = "paperclip:inbox:filters";
 export type InboxTab = "mine" | "recent" | "unread" | "all";
@@ -460,6 +461,26 @@ export function saveInboxNesting(enabled: boolean) {
 
 export function resolveInboxNestingEnabled(preferenceEnabled: boolean, isMobile: boolean): boolean {
   return preferenceEnabled && !isMobile;
+}
+
+export function loadInboxCollapsedParents(): Set<string> {
+  try {
+    const raw = localStorage.getItem(INBOX_COLLAPSED_PARENTS_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((value): value is string => typeof value === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveInboxCollapsedParents(ids: Set<string>) {
+  try {
+    localStorage.setItem(INBOX_COLLAPSED_PARENTS_KEY, JSON.stringify([...ids]));
+  } catch {
+    // Ignore localStorage failures.
+  }
 }
 
 export function loadLastInboxTab(): InboxTab {

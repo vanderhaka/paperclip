@@ -105,6 +105,7 @@ import {
   groupInboxWorkItems,
   isInboxEntityDismissed,
   isMineInboxTab,
+  loadInboxCollapsedParents,
   loadInboxFilterPreferences,
   loadInboxIssueColumns,
   loadInboxNesting,
@@ -113,6 +114,7 @@ import {
   resolveInboxNestingEnabled,
   resolveIssueWorkspaceName,
   resolveInboxSelectionIndex,
+  saveInboxCollapsedParents,
   saveInboxFilterPreferences,
   saveInboxIssueColumns,
   saveInboxNesting,
@@ -762,13 +764,18 @@ export function Inbox() {
     data: mineIssuesRaw = [],
     isLoading: isMineIssuesLoading,
   } = useQuery({
-    queryKey: [...queryKeys.issues.listMineByMe(selectedCompanyId!), "with-routine-executions"],
+    queryKey: [
+      ...queryKeys.issues.listMineByMe(selectedCompanyId!),
+      "with-routine-executions",
+      "with-ancestors",
+    ],
     queryFn: () =>
       issuesApi.list(selectedCompanyId!, {
         touchedByUserId: "me",
         inboxArchivedByUserId: "me",
         status: INBOX_MINE_ISSUE_STATUS_FILTER,
         includeRoutineExecutions: true,
+        includeAncestors: true,
       }),
     enabled: !!selectedCompanyId,
   });
@@ -1084,7 +1091,7 @@ export function Inbox() {
       return next;
     });
   }, []);
-  const [collapsedInboxParents, setCollapsedInboxParents] = useState<Set<string>>(new Set());
+  const [collapsedInboxParents, setCollapsedInboxParents] = useState<Set<string>>(() => loadInboxCollapsedParents());
   const groupedSections = useMemo<InboxGroupedSection[]>(() => [
     ...buildGroupedInboxSections(effectiveWorkItems, groupBy, nestingEnabled),
     ...buildGroupedInboxSections(
@@ -1103,25 +1110,68 @@ export function Inbox() {
       const next = new Set(prev);
       if (next.has(parentId)) next.delete(parentId);
       else next.add(parentId);
+      saveInboxCollapsedParents(next);
       return next;
     });
   }, []);
 
-  // Build flat navigation list including expanded children for keyboard traversal
+  // Prune stale IDs from collapsedInboxParents whenever groupedSections change.
+  // Keeps localStorage bounded to parents that are actually in view.
+  useEffect(() => {
+    const visibleParentIds = new Set<string>();
+    for (const group of groupedSections) {
+      for (const childList of group.childrenByIssueId.values()) {
+        for (const child of childList) {
+          if (child.parentId) visibleParentIds.add(child.parentId);
+        }
+      }
+    }
+    setCollapsedInboxParents((prev) => {
+      if (prev.size === 0) return prev;
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (visibleParentIds.has(id)) next.add(id);
+        else changed = true;
+      }
+      if (!changed) return prev;
+      saveInboxCollapsedParents(next);
+      return next;
+    });
+  }, [groupedSections]);
+
+  // Build flat navigation list including expanded descendants for keyboard
+  // traversal. Walks childrenByIssueId recursively so N-level chains
+  // (e.g. CEO → manager → engineer) stay reachable via j/k and bulk-action
+  // keyboard shortcuts — matching the recursive render below. A depth cap
+  // guards against cyclic bad data.
   const flatNavItems = useMemo((): NavEntry[] => {
     const entries: NavEntry[] = [];
     let topIndex = 0;
+    const MAX_NAV_DEPTH = 10;
+    const appendDescendantsForNav = (
+      parentIssueId: string,
+      parentIndex: number,
+      group: (typeof groupedSections)[number],
+      depth: number,
+      visited: Set<string>,
+    ) => {
+      if (depth > MAX_NAV_DEPTH) return;
+      if (collapsedInboxParents.has(parentIssueId)) return;
+      const children = group.childrenByIssueId.get(parentIssueId);
+      if (!children?.length) return;
+      for (const child of children) {
+        if (visited.has(child.id)) continue;
+        visited.add(child.id);
+        entries.push({ type: "child", parentIndex, issue: child });
+        appendDescendantsForNav(child.id, parentIndex, group, depth + 1, visited);
+      }
+    };
     for (const group of groupedSections) {
       for (const item of group.displayItems) {
         entries.push({ type: "top", index: topIndex, item });
         if (item.kind === "issue") {
-          const children = group.childrenByIssueId.get(item.issue.id);
-          const isExpanded = children?.length && !collapsedInboxParents.has(item.issue.id);
-          if (isExpanded) {
-            for (const child of children) {
-              entries.push({ type: "child", parentIndex: topIndex, issue: child });
-            }
-          }
+          appendDescendantsForNav(item.issue.id, topIndex, group, 1, new Set([item.issue.id]));
         }
         topIndex += 1;
       }
@@ -1910,24 +1960,44 @@ export function Inbox() {
           <div>
             <div ref={listRef} className="overflow-hidden rounded-xl border border-border bg-card">
               {(() => {
-                // Pre-compute flat nav index for each top-level item and child issue.
+                // Pre-compute flat nav index for each top-level item and descendant child issue.
+                // Walks the parent→child tree recursively so N-deep chains (e.g. CEO→manager→engineer)
+                // are fully indexed when expanded. MAX_INBOX_NESTING_DEPTH + visited set protect
+                // against cyclic/malformed parentId data causing hangs.
+                const MAX_INBOX_NESTING_DEPTH = 10;
                 let flatIdx = 0;
                 const topFlatIndex = new Map<string, number>();
                 const childFlatIndex = new Map<string, number>();
+                const indexChildrenRecursively = (
+                  parentIssueId: string,
+                  group: (typeof groupedSections)[number],
+                  depth: number,
+                  visited: Set<string>,
+                ) => {
+                  if (depth > MAX_INBOX_NESTING_DEPTH) return;
+                  const children = group.childrenByIssueId.get(parentIssueId);
+                  if (!children?.length) return;
+                  if (collapsedInboxParents.has(parentIssueId)) return;
+                  for (const child of children) {
+                    if (visited.has(child.id)) continue;
+                    visited.add(child.id);
+                    childFlatIndex.set(child.id, flatIdx);
+                    flatIdx++;
+                    indexChildrenRecursively(child.id, group, depth + 1, visited);
+                  }
+                };
                 for (const group of groupedSections) {
                   for (const topItem of group.displayItems) {
                     const itemKey = `${group.key}:${getWorkItemKey(topItem)}`;
                     topFlatIndex.set(itemKey, flatIdx);
                     flatIdx++;
                     if (topItem.kind === "issue") {
-                      const children = group.childrenByIssueId.get(topItem.issue.id);
-                      const isExpanded = children?.length && !collapsedInboxParents.has(topItem.issue.id);
-                      if (isExpanded) {
-                        for (const child of children) {
-                          childFlatIndex.set(child.id, flatIdx);
-                          flatIdx++;
-                        }
-                      }
+                      indexChildrenRecursively(
+                        topItem.issue.id,
+                        group,
+                        1,
+                        new Set([topItem.issue.id]),
+                      );
                     }
                   }
                 }
@@ -1954,12 +2024,21 @@ export function Inbox() {
                   const isFading = fadingOutIssues.has(issue.id);
                   const isArchiving = archivingIssueIds.has(issue.id);
                   const project = issue.projectId ? projectById.get(issue.projectId) ?? null : null;
+                  const isAncestorHeader = issue.inboxRole === "ancestor";
+                  const depthIndent = depth > 0 ? (
+                    <span
+                      className="hidden shrink-0 sm:block"
+                      style={{ width: `${depth * 1}rem` }}
+                      aria-hidden="true"
+                    />
+                  ) : null;
                   return (
                     <IssueRow
                       key={`issue:${issue.id}`}
                       issue={issue}
                       issueLinkState={issueLinkState}
                       selected={selected}
+                      asHeader={isAncestorHeader}
                       className={
                         isArchiving
                           ? "pointer-events-none -translate-x-4 scale-[0.98] opacity-0 transition-all duration-200 ease-out"
@@ -1968,7 +2047,7 @@ export function Inbox() {
                       desktopMetaLeading={
                         <>
                           {nestingEnabled ? (
-                            depth === 0 && hasChildren && collapseParentId ? (
+                            hasChildren && collapseParentId ? (
                               <button
                                 type="button"
                                 className="hidden w-4 shrink-0 items-center justify-center sm:inline-flex"
@@ -1984,7 +2063,7 @@ export function Inbox() {
                               <span className="hidden w-4 shrink-0 sm:block" />
                             )
                           ) : null}
-                          {depth > 0 ? <span className="hidden w-4 shrink-0 sm:block" /> : null}
+                          {depthIndent}
                           <InboxIssueMetaLeading
                             issue={issue}
                             isLive={liveIssueIds.has(issue.id)}
@@ -1993,14 +2072,14 @@ export function Inbox() {
                           />
                         </>
                       }
-                      titleSuffix={hasChildren && !isExpanded && depth === 0 ? (
+                      titleSuffix={hasChildren && !isExpanded ? (
                         <span className="ml-1.5 text-xs text-muted-foreground">
                           ({childCount} sub-task{childCount !== 1 ? "s" : ""})
                         </span>
                       ) : undefined}
                       mobileMeta={issueActivityText(issue).toLowerCase()}
                       mobileLeading={
-                        depth === 0 && hasChildren && collapseParentId ? (
+                        hasChildren && collapseParentId ? (
                           <button
                             type="button"
                             onClick={(event) => {
@@ -2240,36 +2319,57 @@ export function Inbox() {
                     ) : parentRow));
 
                     if (isExpanded) {
-                      for (const child of childIssues) {
-                        const childNavIdx = childFlatIndex.get(child.id) ?? -1;
-                        const isChildSelected = selectedIndex === childNavIdx;
-                        const childRow = renderInboxIssue({
-                          issue: child,
-                          depth: 1,
-                          selected: isChildSelected,
-                          allowArchive: canArchiveIssue,
-                        });
-                        const isChildArchiving = archivingIssueIds.has(child.id);
-                        elements.push(
-                          <div
-                            key={`sel-issue:${child.id}`}
-                            data-inbox-item
-                            className="relative"
-                            onClick={() => setSelectedIndex(childNavIdx)}
-                          >
-                            {canArchiveIssue ? (
-                              <SwipeToArchive
-                                key={`issue:${child.id}`}
-                                selected={isChildSelected}
-                                disabled={isChildArchiving || archiveIssueMutation.isPending}
-                                onArchive={() => archiveIssueMutation.mutate(child.id)}
-                              >
-                                {childRow}
-                              </SwipeToArchive>
-                            ) : childRow}
-                          </div>,
-                        );
-                      }
+                      // Bound recursion depth and visited set to match the flat nav indexer —
+                      // malformed parentId cycles must not crash or silently drop rows.
+                      const MAX_INBOX_NESTING_DEPTH = 10;
+                      const visitedDescendants = new Set<string>([issue.id]);
+                      const renderDescendants = (parentIssueId: string, depth: number) => {
+                        if (depth > MAX_INBOX_NESTING_DEPTH) return;
+                        const descendants = group.childrenByIssueId.get(parentIssueId) ?? [];
+                        for (const descendant of descendants) {
+                          if (visitedDescendants.has(descendant.id)) continue;
+                          visitedDescendants.add(descendant.id);
+                          const descendantChildren = group.childrenByIssueId.get(descendant.id) ?? [];
+                          const hasDescendantChildren = descendantChildren.length > 0;
+                          const isDescendantExpanded = hasDescendantChildren && !collapsedInboxParents.has(descendant.id);
+                          const childNavIdx = childFlatIndex.get(descendant.id) ?? -1;
+                          const isChildSelected = selectedIndex === childNavIdx;
+                          const childRow = renderInboxIssue({
+                            issue: descendant,
+                            depth,
+                            selected: isChildSelected,
+                            hasChildren: hasDescendantChildren,
+                            isExpanded: isDescendantExpanded,
+                            childCount: descendantChildren.length,
+                            collapseParentId: hasDescendantChildren ? descendant.id : null,
+                            allowArchive: canArchiveIssue,
+                          });
+                          const isChildArchiving = archivingIssueIds.has(descendant.id);
+                          elements.push(
+                            <div
+                              key={`sel-issue:${descendant.id}`}
+                              data-inbox-item
+                              className="relative"
+                              onClick={() => setSelectedIndex(childNavIdx)}
+                            >
+                              {canArchiveIssue ? (
+                                <SwipeToArchive
+                                  key={`issue:${descendant.id}`}
+                                  selected={isChildSelected}
+                                  disabled={isChildArchiving || archiveIssueMutation.isPending}
+                                  onArchive={() => archiveIssueMutation.mutate(descendant.id)}
+                                >
+                                  {childRow}
+                                </SwipeToArchive>
+                              ) : childRow}
+                            </div>,
+                          );
+                          if (isDescendantExpanded) {
+                            renderDescendants(descendant.id, depth + 1);
+                          }
+                        }
+                      };
+                      renderDescendants(issue.id, 1);
                     }
                   }
 

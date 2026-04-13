@@ -226,6 +226,7 @@ export interface Issue {
   lastExternalCommentAt?: Date | null;
   lastActivityAt?: Date | null;
   isUnreadForMe?: boolean;
+  inboxRole?: "assigned" | "ancestor";
   createdAt: Date;
   updatedAt: Date;
 }

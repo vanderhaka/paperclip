@@ -194,4 +194,45 @@ describe("IssueRow", () => {
       root.unmount();
     });
   });
+
+  it("renders as a non-clickable muted header when asHeader is set (ancestor context row)", () => {
+    const root = createRoot(container);
+    const issue = createIssue({ title: "CEO rollout plan" });
+
+    act(() => {
+      root.render(
+        <IssueRow
+          issue={issue}
+          asHeader
+          titleSuffix={<span>(3 sub-tasks)</span>}
+          unreadState="visible"
+          onArchive={() => {}}
+        />,
+      );
+    });
+
+    // Header variant must NOT render the clickable Link wrapper.
+    const link = container.querySelector("[data-inbox-issue-link]");
+    expect(link).toBeNull();
+
+    // Header variant must render the non-interactive div with the header marker.
+    const header = container.querySelector("[data-inbox-issue-header]");
+    expect(header).not.toBeNull();
+    expect(header?.className).toContain("cursor-default");
+    expect(header?.className).toContain("bg-muted/30");
+    expect(header?.className).toContain("text-muted-foreground");
+
+    // Ancestors don't get unread/archive affordances even if the props are passed.
+    expect(container.querySelector('button[aria-label="Mark as read"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="Dismiss from inbox"]')).toBeNull();
+
+    // Title and titleSuffix still render correctly in the header layout.
+    const titleEl = container.querySelector(".line-clamp-2, .truncate");
+    expect(titleEl?.textContent).toContain("CEO rollout plan");
+    expect(titleEl?.textContent).toContain("(3 sub-tasks)");
+
+    act(() => {
+      root.unmount();
+    });
+  });
 });
