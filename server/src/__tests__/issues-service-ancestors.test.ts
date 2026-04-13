@@ -6,7 +6,7 @@
 // strictly scoped to the same companyId.
 
 import { randomUUID } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
@@ -697,6 +697,102 @@ describeEmbeddedPostgres("issueService.list includeAncestors", () => {
 
     for (const row of rows) {
       expect(row.rolledUpStatus).toBeUndefined();
+    }
+  });
+
+  it("handles a 2-node cycle between rows and surfaces a blocked sibling to every cycle node", async () => {
+    // Regression test for the memoization-under-cycles bug Codex caught on
+    // the first pass: with a shared cross-query memo, computing A's rollup
+    // first would poison B's cached result because B's cycle back-edge to A
+    // swaps in A's own status instead of its full descendant closure. The
+    // no-memo DFS we ship here recomputes each top-level row fresh so both
+    // A and B see the blocked sibling through their full reachable set.
+    const companyId = await seedCompany();
+    const userId = "alice";
+
+    const aId = randomUUID();
+    const bId = randomUUID();
+    const cId = randomUUID();
+    await db.insert(issues).values([
+      {
+        id: aId,
+        companyId,
+        title: "A",
+        status: "todo",
+        priority: "medium",
+        createdByUserId: userId,
+      },
+      {
+        id: bId,
+        companyId,
+        title: "B",
+        status: "done",
+        priority: "medium",
+        createdByUserId: userId,
+      },
+      {
+        id: cId,
+        companyId,
+        title: "C (blocked sibling of B under A)",
+        status: "blocked",
+        priority: "high",
+        parentId: aId,
+        createdByUserId: userId,
+      },
+    ]);
+    // Wire the A <-> B cycle with raw updates so we bypass any app-level
+    // guard against creating cyclic parent_id chains.
+    await db.update(issues).set({ parentId: bId }).where(eq(issues.id, aId));
+    await db.update(issues).set({ parentId: aId }).where(eq(issues.id, bId));
+
+    const rows = (await svc.list(companyId, {
+      touchedByUserId: userId,
+      status: "backlog,todo,in_progress,in_review,blocked,done",
+      includeAncestors: true,
+    })) as AncestorAwareIssue[];
+
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    // A → {B, C}: directly reaches blocked via C.
+    expect(byId.get(aId)?.rolledUpStatus).toBe("blocked");
+    // B → A → {B(cycle), C}: reaches blocked via A's non-cycle child C.
+    expect(byId.get(bId)?.rolledUpStatus).toBe("blocked");
+  });
+
+  it("propagates severity correctly through a chain deeper than the legacy depth cap", async () => {
+    // Regression test for the depth-cap memoization bug Codex caught on the
+    // first pass: a cached result captured at the depth-10 bailout boundary
+    // would leak a partial rollup to later sibling/top-level queries. With
+    // no cross-query memo, a 12-node chain in the response set must still
+    // bubble a deeply nested blocked status all the way to the root.
+    const companyId = await seedCompany();
+    const userId = "alice";
+
+    const CHAIN_LENGTH = 12;
+    const ids = Array.from({ length: CHAIN_LENGTH }, () => randomUUID());
+    const rowsToInsert = ids.map((id, i) => ({
+      id,
+      companyId,
+      title: `chain[${i}]`,
+      status: i === CHAIN_LENGTH - 1 ? "blocked" : "todo",
+      priority: "medium",
+      parentId: i === 0 ? null : ids[i - 1],
+      createdByUserId: userId,
+    }));
+    await db.insert(issues).values(rowsToInsert);
+
+    const rows = (await svc.list(companyId, {
+      touchedByUserId: userId,
+      status: "backlog,todo,in_progress,in_review,blocked,done",
+      includeAncestors: true,
+    })) as AncestorAwareIssue[];
+
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    // Every node in the chain should be present in the response set (all
+    // touched by the user) and every one should roll up to blocked — the
+    // deepest node's severity must propagate all 11 levels to the root.
+    for (let i = 0; i < CHAIN_LENGTH; i++) {
+      expect(byId.has(ids[i])).toBe(true);
+      expect(byId.get(ids[i])?.rolledUpStatus).toBe("blocked");
     }
   });
 

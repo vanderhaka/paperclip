@@ -58,8 +58,6 @@ const ROLLUP_SEVERITY: Record<IssueStatus, number> = {
   cancelled: -1,
 };
 
-const MAX_INBOX_ROLLUP_DEPTH = 10;
-
 function coerceIssueStatus(status: string): IssueStatus {
   return (ROLLUP_SEVERITY as Record<string, number>)[status] !== undefined
     ? (status as IssueStatus)
@@ -79,31 +77,27 @@ function computeInboxRolledUpStatuses<
     }
   }
 
-  const memo = new Map<string, IssueStatus>();
-
-  const compute = (id: string, visited: Set<string>, depth: number): IssueStatus => {
-    const cached = memo.get(id);
-    if (cached !== undefined) return cached;
+  // Each top-level row gets its own DFS with its own visited set and no
+  // cross-row memoization. A shared memo would be path-dependent in the
+  // presence of cycles or cycle-like shapes (a sibling's cached result can
+  // be "partial" because a cycle bailout swapped a back-edge for an own
+  // status) and would leak that partial value to other rows. Inbox response
+  // sets are small, so the O(n × avgDescendants) cost is fine.
+  const walk = (id: string, visited: Set<string>): IssueStatus => {
     const row = rowById.get(id);
     if (!row) return "todo";
     const ownStatus = coerceIssueStatus(row.status);
-    // Cancelled parents keep their own status and don't aggregate children.
-    if (ownStatus === "cancelled") {
-      memo.set(id, "cancelled");
-      return "cancelled";
-    }
-    // Cycle / depth guard — bail without memoizing so a cleaner entry path
-    // can still compute the true value for this node.
-    if (visited.has(id) || depth >= MAX_INBOX_ROLLUP_DEPTH) {
-      return ownStatus;
-    }
-
+    // Cancelled parents keep their own status and do not aggregate children.
+    if (ownStatus === "cancelled") return "cancelled";
+    // Cycle guard: if we revisit a node already on the stack, treat this
+    // back-edge as contributing only its own status.
+    if (visited.has(id)) return ownStatus;
     visited.add(id);
+
     let bestStatus: IssueStatus = ownStatus;
     let bestSeverity = ROLLUP_SEVERITY[ownStatus];
-
     for (const childId of childrenByParent.get(id) ?? []) {
-      const childRollup = compute(childId, visited, depth + 1);
+      const childRollup = walk(childId, visited);
       if (childRollup === "cancelled") continue;
       const sev = ROLLUP_SEVERITY[childRollup];
       if (sev > bestSeverity) {
@@ -112,13 +106,12 @@ function computeInboxRolledUpStatuses<
       }
     }
     visited.delete(id);
-    memo.set(id, bestStatus);
     return bestStatus;
   };
 
   const result = new Map<string, IssueStatus>();
   for (const row of rows) {
-    result.set(row.id, compute(row.id, new Set(), 0));
+    result.set(row.id, walk(row.id, new Set()));
   }
   return result;
 }
