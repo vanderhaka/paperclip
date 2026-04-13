@@ -366,8 +366,8 @@ export function Layout() {
                   <Link
                     to={instanceSettingsTarget}
                     state={SIDEBAR_SCROLL_RESET_STATE}
-                    aria-label="Instance settings"
-                    title="Instance settings"
+                    aria-label="Admin"
+                    title="Admin"
                     onClick={() => {
                       if (isMobile) setSidebarOpen(false);
                     }}
@@ -425,8 +425,8 @@ export function Layout() {
                   <Link
                     to={instanceSettingsTarget}
                     state={SIDEBAR_SCROLL_RESET_STATE}
-                    aria-label="Instance settings"
-                    title="Instance settings"
+                    aria-label="Admin"
+                    title="Admin"
                     onClick={() => {
                       if (isMobile) setSidebarOpen(false);
                     }}

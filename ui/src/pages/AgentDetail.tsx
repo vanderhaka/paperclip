@@ -872,7 +872,7 @@ export function AgentDetail() {
       } else if (activeView === "budget") {
         crumbs.push({ label: "Budget" });
       } else {
-        crumbs.push({ label: "Dashboard" });
+        crumbs.push({ label: "Overview" });
       }
     }
     setBreadcrumbs(crumbs);
@@ -1005,11 +1005,11 @@ export function AgentDetail() {
         >
           <PageTabBar
             items={[
-              { value: "dashboard", label: "Dashboard" },
+              { value: "dashboard", label: "Overview" },
+              { value: "runs", label: "Runs" },
               { value: "instructions", label: "Instructions" },
               { value: "skills", label: "Skills" },
               { value: "configuration", label: "Configuration" },
-              { value: "runs", label: "Runs" },
               { value: "budget", label: "Budget" },
             ]}
             value={activeView}

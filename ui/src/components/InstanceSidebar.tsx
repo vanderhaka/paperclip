@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Clock3, Cpu, FlaskConical, Puzzle, Settings, SlidersHorizontal } from "lucide-react";
-import { NavLink } from "@/lib/router";
+import { ArrowLeft, Clock3, Cpu, FlaskConical, Puzzle, ShieldAlert, SlidersHorizontal } from "lucide-react";
+import { Link, NavLink } from "@/lib/router";
 import { pluginsApi } from "@/api/plugins";
 import { queryKeys } from "@/lib/queryKeys";
 import { SIDEBAR_SCROLL_RESET_STATE } from "@/lib/navigation-scroll";
@@ -15,11 +15,22 @@ export function InstanceSidebar() {
   return (
     <aside className="w-60 h-full min-h-0 border-r border-border bg-background flex flex-col">
       <div className="flex items-center gap-2 px-3 h-12 shrink-0">
-        <Settings className="h-4 w-4 text-muted-foreground shrink-0 ml-1" />
+        <ShieldAlert className="h-4 w-4 text-amber-500 shrink-0 ml-1" />
         <span className="flex-1 text-sm font-bold text-foreground truncate">
-          Instance Settings
+          Admin
         </span>
       </div>
+      <div className="px-4 pb-2 -mt-1 text-[11px] text-muted-foreground leading-snug">
+        Settings here affect every workspace on this Paperclip instance.
+      </div>
+      <Link
+        to="/"
+        state={SIDEBAR_SCROLL_RESET_STATE}
+        className="mx-3 mb-2 flex items-center gap-2 rounded-md border border-border/60 px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+        Back to workspace
+      </Link>
 
       <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide flex flex-col gap-4 px-3 py-2">
         <div className="flex flex-col gap-0.5">

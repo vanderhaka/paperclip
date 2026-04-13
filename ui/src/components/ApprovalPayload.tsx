@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { UserPlus, Lightbulb, ShieldAlert, ShieldCheck } from "lucide-react";
 import { formatCents } from "../lib/utils";
 
@@ -55,7 +56,10 @@ function PayloadField({ label, value }: { label: string; value: unknown }) {
   );
 }
 
+const SKILL_COLLAPSE_THRESHOLD = 8;
+
 function SkillList({ values }: { values: unknown }) {
+  const [expanded, setExpanded] = useState(false);
   if (!Array.isArray(values)) return null;
   const items = values
     .filter((value): value is string => typeof value === "string")
@@ -63,11 +67,17 @@ function SkillList({ values }: { values: unknown }) {
     .filter(Boolean);
   if (items.length === 0) return null;
 
+  const shouldCollapse = items.length > SKILL_COLLAPSE_THRESHOLD;
+  const visible = expanded || !shouldCollapse
+    ? items
+    : items.slice(0, SKILL_COLLAPSE_THRESHOLD);
+  const remaining = items.length - visible.length;
+
   return (
     <div className="flex items-start gap-2">
       <span className="text-muted-foreground w-20 sm:w-24 shrink-0 text-xs pt-0.5">Skills</span>
-      <div className="flex flex-wrap gap-1.5">
-        {items.map((item) => (
+      <div className="flex flex-wrap gap-1.5 min-w-0">
+        {visible.map((item) => (
           <span
             key={item}
             className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
@@ -75,6 +85,15 @@ function SkillList({ values }: { values: unknown }) {
             {item}
           </span>
         ))}
+        {shouldCollapse && (
+          <button
+            type="button"
+            className="rounded border border-dashed border-border/80 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? "Show fewer" : `Show ${remaining} more`}
+          </button>
+        )}
       </div>
     </div>
   );

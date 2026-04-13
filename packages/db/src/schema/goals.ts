@@ -4,6 +4,7 @@ import {
   uuid,
   text,
   timestamp,
+  numeric,
   index,
 } from "drizzle-orm/pg-core";
 import { agents } from "./agents.js";
@@ -20,6 +21,11 @@ export const goals = pgTable(
     status: text("status").notNull().default("planned"),
     parentId: uuid("parent_id").references((): AnyPgColumn => goals.id),
     ownerAgentId: uuid("owner_agent_id").references(() => agents.id),
+    metric: text("metric"),
+    targetValue: numeric("target_value"),
+    currentValue: numeric("current_value"),
+    unit: text("unit"),
+    dueAt: timestamp("due_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

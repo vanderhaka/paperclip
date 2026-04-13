@@ -151,6 +151,32 @@ export function ApprovalDetail() {
   const TypeIcon = typeIcon[approval.type] ?? defaultTypeIcon;
   const showApprovedBanner = searchParams.get("resolved") === "approved" && approval.status === "approved";
   const primaryLinkedIssue = linkedIssues?.[0] ?? null;
+
+  // One-line "what changes if you approve" — helps the reader understand the
+  // decision without reading the whole payload. Defaults fall back to null so
+  // the row doesn't render for unknown types.
+  const onApprovalSummary: string | null = (() => {
+    if (approval.type === "hire_agent") {
+      const name = typeof payload.name === "string" ? payload.name : null;
+      const role = typeof payload.role === "string" ? payload.role : null;
+      if (name && role) return `A new agent "${name}" will be hired as ${role}.`;
+      if (name) return `A new agent "${name}" will be hired.`;
+      return `A new agent will be hired.`;
+    }
+    if (approval.type === "budget_override_required") {
+      const scope = typeof payload.scopeName === "string" ? payload.scopeName : null;
+      if (scope) return `Spending cap for ${scope} will be raised and paused work will resume.`;
+      return `The spending cap will be raised and paused work will resume.`;
+    }
+    if (approval.type === "approve_ceo_strategy") {
+      return `The strategy will be adopted and the CEO will begin executing it.`;
+    }
+    if (approval.type === "request_board_approval") {
+      const nextAction = typeof payload.nextActionOnApproval === "string" ? payload.nextActionOnApproval : null;
+      return nextAction ?? `The proposed action will proceed as recommended.`;
+    }
+    return null;
+  })();
   const resolvedCta =
     primaryLinkedIssue
       ? {
@@ -198,73 +224,44 @@ export function ApprovalDetail() {
           </div>
         </div>
       )}
-      <div className="border border-border rounded-lg p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TypeIcon className="h-5 w-5 text-muted-foreground shrink-0" />
-            <div>
-              <h2 className="text-lg font-semibold">{approvalLabel(approval.type, approval.payload as Record<string, unknown> | null)}</h2>
-              <p className="text-xs text-muted-foreground font-mono">{approval.id}</p>
+      <div className="border border-border rounded-lg p-4 space-y-4">
+        {/* Decision header: title + status + who's asking */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2 min-w-0">
+            <TypeIcon className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold leading-tight">
+                {approvalLabel(approval.type, approval.payload as Record<string, unknown> | null)}
+              </h2>
+              {approval.requestedByAgentId && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-muted-foreground text-xs">Requested by</span>
+                  <Identity
+                    name={agentNameById.get(approval.requestedByAgentId) ?? approval.requestedByAgentId.slice(0, 8)}
+                    size="sm"
+                  />
+                </div>
+              )}
             </div>
           </div>
           <StatusBadge status={approval.status} />
         </div>
-        <div className="text-sm space-y-1">
-          {approval.requestedByAgentId && (
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground text-xs">Requested by</span>
-              <Identity
-                name={agentNameById.get(approval.requestedByAgentId) ?? approval.requestedByAgentId.slice(0, 8)}
-                size="sm"
-              />
-            </div>
-          )}
-          <ApprovalPayloadRenderer type={approval.type} payload={payload} />
-          <button
-            type="button"
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-2"
-            onClick={() => setShowRawPayload((v) => !v)}
-          >
-            <ChevronRight className={`h-3 w-3 transition-transform ${showRawPayload ? "rotate-90" : ""}`} />
-            See full request
-          </button>
-          {showRawPayload && (
-            <pre className="text-xs bg-muted/40 rounded-md p-3 overflow-x-auto">
-              {JSON.stringify(payload, null, 2)}
-            </pre>
-          )}
-          {approval.decisionNote && (
-            <p className="text-xs text-muted-foreground">Decision note: {approval.decisionNote}</p>
-          )}
-        </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        {linkedIssues && linkedIssues.length > 0 && (
-          <div className="pt-2 border-t border-border/60">
-            <p className="text-xs text-muted-foreground mb-1.5">Linked Issues</p>
-            <div className="space-y-1.5">
-              {linkedIssues.map((issue) => (
-                <Link
-                  key={issue.id}
-                  to={`/issues/${issue.identifier ?? issue.id}`}
-                  className="block text-xs rounded border border-border/70 px-2 py-1.5 hover:bg-accent/20"
-                >
-                  <span className="font-mono text-muted-foreground mr-2">
-                    {issue.identifier ?? issue.id.slice(0, 8)}
-                  </span>
-                  <span>{issue.title}</span>
-                </Link>
-              ))}
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2">
-              Linked issues remain open until the requesting agent follows up and closes them.
+
+        {/* "What changes if you approve" — pinned above the decision actions */}
+        {onApprovalSummary && isActionable && (
+          <div className="rounded-md border border-emerald-500/25 bg-emerald-500/[0.06] px-3 py-2">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+              If you approve
             </p>
+            <p className="text-sm text-foreground mt-0.5">{onApprovalSummary}</p>
           </div>
         )}
+
+        {/* Decision actions pinned near the top */}
         <div className="flex flex-wrap items-center gap-2">
           {isActionable && !isBudgetApproval && (
             <>
               <Button
-                size="sm"
                 className="bg-green-700 hover:bg-green-600 text-white"
                 onClick={() => approveMutation.mutate()}
                 disabled={approveMutation.isPending}
@@ -273,7 +270,6 @@ export function ApprovalDetail() {
               </Button>
               <Button
                 variant="destructive"
-                size="sm"
                 onClick={() => rejectMutation.mutate()}
                 disabled={rejectMutation.isPending}
               >
@@ -321,6 +317,52 @@ export function ApprovalDetail() {
             </Button>
           )}
         </div>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        {/* Request details (secondary) */}
+        <div className="border-t border-border/60 pt-3 text-sm space-y-1">
+          <ApprovalPayloadRenderer type={approval.type} payload={payload} />
+          <button
+            type="button"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-2"
+            onClick={() => setShowRawPayload((v) => !v)}
+          >
+            <ChevronRight className={`h-3 w-3 transition-transform ${showRawPayload ? "rotate-90" : ""}`} />
+            See full request
+          </button>
+          {showRawPayload && (
+            <pre className="text-xs bg-muted/40 rounded-md p-3 overflow-x-auto">
+              {JSON.stringify(payload, null, 2)}
+            </pre>
+          )}
+          {approval.decisionNote && (
+            <p className="text-xs text-muted-foreground">Decision note: {approval.decisionNote}</p>
+          )}
+        </div>
+
+        {linkedIssues && linkedIssues.length > 0 && (
+          <div className="pt-2 border-t border-border/60">
+            <p className="text-xs text-muted-foreground mb-1.5">Linked Issues</p>
+            <div className="space-y-1.5">
+              {linkedIssues.map((issue) => (
+                <Link
+                  key={issue.id}
+                  to={`/issues/${issue.identifier ?? issue.id}`}
+                  className="block text-xs rounded border border-border/70 px-2 py-1.5 hover:bg-accent/20"
+                >
+                  <span className="font-mono text-muted-foreground mr-2">
+                    {issue.identifier ?? issue.id.slice(0, 8)}
+                  </span>
+                  <span>{issue.title}</span>
+                </Link>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Linked issues remain open until the requesting agent follows up and closes them.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="border border-border rounded-lg p-4 space-y-3">

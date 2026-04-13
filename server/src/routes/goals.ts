@@ -4,6 +4,7 @@ import { createGoalSchema, updateGoalSchema } from "@paperclipai/shared";
 import { trackGoalCreated } from "@paperclipai/shared/telemetry";
 import { validate } from "../middleware/validate.js";
 import { goalService, logActivity } from "../services/index.js";
+import { computeCompanyGoalProgress, computeGoalProgress } from "../services/goal-progress.js";
 import { assertCompanyAccess, getActorInfo } from "./authz.js";
 import { getTelemetryClient } from "../telemetry.js";
 
@@ -14,8 +15,12 @@ export function goalRoutes(db: Db) {
   router.get("/companies/:companyId/goals", async (req, res) => {
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);
-    const result = await svc.list(companyId);
-    res.json(result);
+    const [list, progressByGoal] = await Promise.all([
+      svc.list(companyId),
+      computeCompanyGoalProgress(db, companyId),
+    ]);
+    const enriched = list.map((g) => ({ ...g, progress: progressByGoal.get(g.id) ?? null }));
+    res.json(enriched);
   });
 
   router.get("/goals/:id", async (req, res) => {
@@ -26,7 +31,8 @@ export function goalRoutes(db: Db) {
       return;
     }
     assertCompanyAccess(req, goal.companyId);
-    res.json(goal);
+    const progress = await computeGoalProgress(db, id);
+    res.json({ ...goal, progress: progress ?? null });
   });
 
   router.post("/companies/:companyId/goals", validate(createGoalSchema), async (req, res) => {
