@@ -114,10 +114,47 @@ async function main() {
   await db.update(issues).set({ parentId: s2Mid.id }).where(eq(issues.id, s2Leaf.id));
   console.log(`  root: ${s2Root.identifier} → mid: ${s2Mid.identifier} → leaf: ${s2Leaf.identifier}`);
 
+  // ---------- Scenario 3: rollup status ----------
+  // Parent is stored as `done` but one child is still in_progress → the
+  // rollup must pull the parent's displayed status back to `in_progress`.
+  // This is the "parent doesn't go green until all sub tasks are green" case.
+  console.log("\nScenario 3: rollup — parent stored as done but child still in_progress");
+  const s3Parent = await svc.create(company.id, {
+    title: "[demo] Scenario 3 — Prematurely done parent",
+    description:
+      "Parent is stored as done but one child is still in_progress. Rollup should display the parent as in_progress in the inbox.",
+    status: "done",
+    priority: "medium",
+    assigneeAgentId: ceo.id,
+    createdByUserId: "local-board",
+  });
+  const s3DoneChild = await svc.create(company.id, {
+    title: "[demo] S3 subtask 1: done",
+    description: "Done child — by itself would keep parent green.",
+    status: "done",
+    priority: "medium",
+    assigneeAgentId: eng2.id,
+    createdByUserId: REAL_USER_ID,
+  });
+  await db.update(issues).set({ parentId: s3Parent.id }).where(eq(issues.id, s3DoneChild.id));
+  const s3InProgressChild = await svc.create(company.id, {
+    title: "[demo] S3 subtask 2: still in_progress",
+    description: "This child drags the parent's rolled-up status back to in_progress.",
+    status: "in_progress",
+    priority: "medium",
+    assigneeAgentId: eng3.id,
+    createdByUserId: REAL_USER_ID,
+  });
+  await db.update(issues).set({ parentId: s3Parent.id }).where(eq(issues.id, s3InProgressChild.id));
+  console.log(`  parent: ${s3Parent.identifier} (stored done)`);
+  console.log(`  children: ${s3DoneChild.identifier} (done), ${s3InProgressChild.identifier} (in_progress)`);
+
   console.log("\nDone. Refresh http://127.0.0.1:3100 and check the 'Mine' tab.");
   console.log("Expected:");
   console.log("  • Scenario 1 parent shown as MUTED ancestor row with 3 engineer children nested");
+  console.log("  • Scenario 1 parent's STATUS ICON rolls up to blocked (severity of blocked child)");
   console.log("  • Scenario 2 shows 3-level nesting: Root → Mid → Leaf");
+  console.log("  • Scenario 3 parent shows in_progress even though it's stored as done");
   process.exit(0);
 }
 

@@ -227,6 +227,7 @@ export interface Issue {
   lastActivityAt?: Date | null;
   isUnreadForMe?: boolean;
   inboxRole?: "assigned" | "ancestor";
+  rolledUpStatus?: IssueStatus;
   createdAt: Date;
   updatedAt: Date;
 }

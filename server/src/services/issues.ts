@@ -22,7 +22,7 @@ import {
   projectWorkspaces,
   projects,
 } from "@paperclipai/db";
-import type { IssueRelationIssueSummary } from "@paperclipai/shared";
+import type { IssueRelationIssueSummary, IssueStatus } from "@paperclipai/shared";
 import { extractAgentMentionIds, extractProjectMentionIds, isUuidLike } from "@paperclipai/shared";
 import { conflict, notFound, unprocessable } from "../errors.js";
 import {
@@ -38,6 +38,90 @@ import { getDefaultCompanyGoal } from "./goals.js";
 
 const ALL_ISSUE_STATUSES = ["backlog", "todo", "in_progress", "in_review", "blocked", "done", "cancelled"];
 const MAX_ISSUE_COMMENT_PAGE_LIMIT = 500;
+
+// Severity order for the inbox rollup:
+//   blocked > in_review > in_progress > todo/backlog > done
+// `cancelled` is excluded from aggregation entirely (neither blocks `done`
+// nor contributes severity). This matches §1.6.2 / §2.2 of
+// doc/inbox-nesting-next-steps.md — the parent does not go green until every
+// non-cancelled descendant is also green.
+// TODO(rollup-opt-out): support per-parent opt-out of the strict "all
+// descendants must be done" rule for parents that are legitimately complete
+// even with open subtasks.
+const ROLLUP_SEVERITY: Record<IssueStatus, number> = {
+  blocked: 5,
+  in_review: 4,
+  in_progress: 3,
+  todo: 2,
+  backlog: 2,
+  done: 1,
+  cancelled: -1,
+};
+
+const MAX_INBOX_ROLLUP_DEPTH = 10;
+
+function coerceIssueStatus(status: string): IssueStatus {
+  return (ROLLUP_SEVERITY as Record<string, number>)[status] !== undefined
+    ? (status as IssueStatus)
+    : "todo";
+}
+
+function computeInboxRolledUpStatuses<
+  Row extends { id: string; parentId: string | null; status: string },
+>(rows: Row[]): Map<string, IssueStatus> {
+  const rowById = new Map(rows.map((r) => [r.id, r] as const));
+  const childrenByParent = new Map<string, string[]>();
+  for (const row of rows) {
+    if (row.parentId && rowById.has(row.parentId)) {
+      const list = childrenByParent.get(row.parentId);
+      if (list) list.push(row.id);
+      else childrenByParent.set(row.parentId, [row.id]);
+    }
+  }
+
+  const memo = new Map<string, IssueStatus>();
+
+  const compute = (id: string, visited: Set<string>, depth: number): IssueStatus => {
+    const cached = memo.get(id);
+    if (cached !== undefined) return cached;
+    const row = rowById.get(id);
+    if (!row) return "todo";
+    const ownStatus = coerceIssueStatus(row.status);
+    // Cancelled parents keep their own status and don't aggregate children.
+    if (ownStatus === "cancelled") {
+      memo.set(id, "cancelled");
+      return "cancelled";
+    }
+    // Cycle / depth guard — bail without memoizing so a cleaner entry path
+    // can still compute the true value for this node.
+    if (visited.has(id) || depth >= MAX_INBOX_ROLLUP_DEPTH) {
+      return ownStatus;
+    }
+
+    visited.add(id);
+    let bestStatus: IssueStatus = ownStatus;
+    let bestSeverity = ROLLUP_SEVERITY[ownStatus];
+
+    for (const childId of childrenByParent.get(id) ?? []) {
+      const childRollup = compute(childId, visited, depth + 1);
+      if (childRollup === "cancelled") continue;
+      const sev = ROLLUP_SEVERITY[childRollup];
+      if (sev > bestSeverity) {
+        bestSeverity = sev;
+        bestStatus = childRollup;
+      }
+    }
+    visited.delete(id);
+    memo.set(id, bestStatus);
+    return bestStatus;
+  };
+
+  const result = new Map<string, IssueStatus>();
+  for (const row of rows) {
+    result.set(row.id, compute(row.id, new Set(), 0));
+  }
+  return result;
+}
 
 function assertTransition(from: string, to: string) {
   if (from === to) return;
@@ -1212,7 +1296,19 @@ export function issueService(db: Db) {
         ...row,
         inboxRole: "ancestor" as const,
       }));
-      return [...baseWithRole, ...ancestorsWithRole];
+      const merged = [...baseWithRole, ...ancestorsWithRole];
+      // Compute rolled-up status over the visible descendant closure.
+      // Aggregation uses only the issues present in the response — children
+      // that aren't returned (wrong status, hidden, archived) don't influence
+      // the parent's rollup.
+      const rollupByIssueId = computeInboxRolledUpStatuses(merged);
+      for (const row of merged) {
+        const rolled = rollupByIssueId.get(row.id);
+        if (rolled !== undefined) {
+          (row as { rolledUpStatus?: IssueStatus }).rolledUpStatus = rolled;
+        }
+      }
+      return merged;
     },
 
     countUnreadTouchedByUser: async (companyId: string, userId: string, status?: string) => {

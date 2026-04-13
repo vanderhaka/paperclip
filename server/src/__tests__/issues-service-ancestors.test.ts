@@ -55,6 +55,7 @@ if (!embeddedPostgresSupport.supported) {
 
 type AncestorAwareIssue = Awaited<ReturnType<ReturnType<typeof issueService>["list"]>>[number] & {
   inboxRole?: "assigned" | "ancestor";
+  rolledUpStatus?: string;
 };
 
 describeEmbeddedPostgres("issueService.list includeAncestors", () => {
@@ -342,6 +343,408 @@ describeEmbeddedPostgres("issueService.list includeAncestors", () => {
     const rolesA = roleById(rowsA);
     expect(rolesA.get(localChildId)).toBe("assigned");
     expect(rolesA.has(foreignParentId)).toBe(false);
+  });
+
+  it("rolls a parent up to the highest-severity descendant status (in_progress beats todo)", async () => {
+    const companyId = await seedCompany();
+    const userId = "alice";
+
+    const parentId = randomUUID();
+    const childA = randomUUID();
+    const childB = randomUUID();
+    const childC = randomUUID();
+    await db.insert(issues).values([
+      {
+        id: parentId,
+        companyId,
+        title: "parent",
+        status: "todo",
+        priority: "medium",
+        createdByUserId: userId,
+      },
+      {
+        id: childA,
+        companyId,
+        title: "child A (in_progress)",
+        status: "in_progress",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+      {
+        id: childB,
+        companyId,
+        title: "child B (todo)",
+        status: "todo",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+      {
+        id: childC,
+        companyId,
+        title: "child C (todo)",
+        status: "todo",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+    ]);
+
+    const rows = (await svc.list(companyId, {
+      touchedByUserId: userId,
+      status: "backlog,todo,in_progress,in_review,blocked,done",
+      includeAncestors: true,
+    })) as AncestorAwareIssue[];
+
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    expect(byId.get(parentId)?.rolledUpStatus).toBe("in_progress");
+    expect(byId.get(childA)?.rolledUpStatus).toBe("in_progress");
+    expect(byId.get(childB)?.rolledUpStatus).toBe("todo");
+  });
+
+  it("rolls a parent up to blocked when any descendant is blocked (even if others are done)", async () => {
+    const companyId = await seedCompany();
+    const userId = "alice";
+
+    const parentId = randomUUID();
+    const childA = randomUUID();
+    const childB = randomUUID();
+    const childC = randomUUID();
+    await db.insert(issues).values([
+      {
+        id: parentId,
+        companyId,
+        title: "parent",
+        status: "in_progress",
+        priority: "high",
+        createdByUserId: userId,
+      },
+      {
+        id: childA,
+        companyId,
+        title: "blocked child",
+        status: "blocked",
+        priority: "high",
+        parentId,
+        createdByUserId: userId,
+      },
+      {
+        id: childB,
+        companyId,
+        title: "done child 1",
+        status: "done",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+      {
+        id: childC,
+        companyId,
+        title: "done child 2",
+        status: "done",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+    ]);
+
+    const rows = (await svc.list(companyId, {
+      touchedByUserId: userId,
+      status: "backlog,todo,in_progress,in_review,blocked,done",
+      includeAncestors: true,
+    })) as AncestorAwareIssue[];
+
+    expect(rows.find((r) => r.id === parentId)?.rolledUpStatus).toBe("blocked");
+  });
+
+  it("rolls a parent up to done only when every descendant is done AND parent is done", async () => {
+    const companyId = await seedCompany();
+    const userId = "alice";
+
+    const parentId = randomUUID();
+    const childA = randomUUID();
+    const childB = randomUUID();
+    await db.insert(issues).values([
+      {
+        id: parentId,
+        companyId,
+        title: "parent done",
+        status: "done",
+        priority: "medium",
+        createdByUserId: userId,
+      },
+      {
+        id: childA,
+        companyId,
+        title: "done child",
+        status: "done",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+      {
+        id: childB,
+        companyId,
+        title: "done child 2",
+        status: "done",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+    ]);
+
+    const rows = (await svc.list(companyId, {
+      touchedByUserId: userId,
+      status: "backlog,todo,in_progress,in_review,blocked,done",
+      includeAncestors: true,
+    })) as AncestorAwareIssue[];
+
+    expect(rows.find((r) => r.id === parentId)?.rolledUpStatus).toBe("done");
+  });
+
+  it("does not roll a done parent to done when any descendant is non-done", async () => {
+    const companyId = await seedCompany();
+    const userId = "alice";
+
+    const parentId = randomUUID();
+    const childA = randomUUID();
+    await db.insert(issues).values([
+      {
+        id: parentId,
+        companyId,
+        title: "parent prematurely done",
+        status: "done",
+        priority: "medium",
+        createdByUserId: userId,
+      },
+      {
+        id: childA,
+        companyId,
+        title: "still in progress",
+        status: "in_progress",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+    ]);
+
+    const rows = (await svc.list(companyId, {
+      touchedByUserId: userId,
+      status: "backlog,todo,in_progress,in_review,blocked,done",
+      includeAncestors: true,
+    })) as AncestorAwareIssue[];
+
+    expect(rows.find((r) => r.id === parentId)?.rolledUpStatus).toBe("in_progress");
+  });
+
+  it("prefers in_review over in_progress in severity ordering", async () => {
+    const companyId = await seedCompany();
+    const userId = "alice";
+
+    const parentId = randomUUID();
+    const childA = randomUUID();
+    const childB = randomUUID();
+    const childC = randomUUID();
+    await db.insert(issues).values([
+      {
+        id: parentId,
+        companyId,
+        title: "parent",
+        status: "in_progress",
+        priority: "medium",
+        createdByUserId: userId,
+      },
+      {
+        id: childA,
+        companyId,
+        title: "in_review child",
+        status: "in_review",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+      {
+        id: childB,
+        companyId,
+        title: "done child",
+        status: "done",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+      {
+        id: childC,
+        companyId,
+        title: "in_progress child",
+        status: "in_progress",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+    ]);
+
+    const rows = (await svc.list(companyId, {
+      touchedByUserId: userId,
+      status: "backlog,todo,in_progress,in_review,blocked,done",
+      includeAncestors: true,
+    })) as AncestorAwareIssue[];
+
+    expect(rows.find((r) => r.id === parentId)?.rolledUpStatus).toBe("in_review");
+  });
+
+  it("bubbles up severity across a 3-level chain (deepest descendant wins)", async () => {
+    const companyId = await seedCompany();
+    const userId = "alice";
+
+    const rootId = randomUUID();
+    const midId = randomUUID();
+    const leafId = randomUUID();
+    await db.insert(issues).values([
+      {
+        id: rootId,
+        companyId,
+        title: "root",
+        status: "in_progress",
+        priority: "high",
+        createdByUserId: "someone-else",
+      },
+      {
+        id: midId,
+        companyId,
+        title: "mid",
+        status: "in_progress",
+        priority: "medium",
+        parentId: rootId,
+        createdByUserId: "someone-else",
+      },
+      {
+        id: leafId,
+        companyId,
+        title: "leaf",
+        status: "blocked",
+        priority: "high",
+        parentId: midId,
+        createdByUserId: userId,
+      },
+    ]);
+
+    const rows = (await svc.list(companyId, {
+      touchedByUserId: userId,
+      status: "backlog,todo,in_progress,in_review,blocked,done",
+      includeAncestors: true,
+    })) as AncestorAwareIssue[];
+
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    expect(byId.get(leafId)?.rolledUpStatus).toBe("blocked");
+    expect(byId.get(midId)?.rolledUpStatus).toBe("blocked");
+    expect(byId.get(rootId)?.rolledUpStatus).toBe("blocked");
+  });
+
+  it("treats a leaf row's rollup as equal to its own status", async () => {
+    const companyId = await seedCompany();
+    const userId = "alice";
+
+    const soloId = randomUUID();
+    await db.insert(issues).values({
+      id: soloId,
+      companyId,
+      title: "solo leaf",
+      status: "in_review",
+      priority: "medium",
+      createdByUserId: userId,
+    });
+
+    const rows = (await svc.list(companyId, {
+      touchedByUserId: userId,
+      status: "backlog,todo,in_progress,in_review,blocked,done",
+      includeAncestors: true,
+    })) as AncestorAwareIssue[];
+
+    expect(rows.find((r) => r.id === soloId)?.rolledUpStatus).toBe("in_review");
+  });
+
+  it("omits rolledUpStatus entirely when includeAncestors is false", async () => {
+    const companyId = await seedCompany();
+    const userId = "alice";
+
+    const parentId = randomUUID();
+    const childId = randomUUID();
+    await db.insert(issues).values([
+      {
+        id: parentId,
+        companyId,
+        title: "parent",
+        status: "todo",
+        priority: "medium",
+        createdByUserId: userId,
+      },
+      {
+        id: childId,
+        companyId,
+        title: "child",
+        status: "in_progress",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+    ]);
+
+    const rows = (await svc.list(companyId, {
+      touchedByUserId: userId,
+      status: "backlog,todo,in_progress,in_review,blocked,done",
+    })) as AncestorAwareIssue[];
+
+    for (const row of rows) {
+      expect(row.rolledUpStatus).toBeUndefined();
+    }
+  });
+
+  it("ignores cancelled descendants when aggregating", async () => {
+    const companyId = await seedCompany();
+    const userId = "alice";
+
+    const parentId = randomUUID();
+    const cancelledChildId = randomUUID();
+    const doneChildId = randomUUID();
+    await db.insert(issues).values([
+      {
+        id: parentId,
+        companyId,
+        title: "parent",
+        status: "done",
+        priority: "medium",
+        createdByUserId: userId,
+      },
+      {
+        id: cancelledChildId,
+        companyId,
+        title: "cancelled child",
+        status: "cancelled",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+      {
+        id: doneChildId,
+        companyId,
+        title: "done child",
+        status: "done",
+        priority: "medium",
+        parentId,
+        createdByUserId: userId,
+      },
+    ]);
+
+    const rows = (await svc.list(companyId, {
+      touchedByUserId: userId,
+      // include cancelled so the cancelled child enters the response set
+      status: "backlog,todo,in_progress,in_review,blocked,done,cancelled",
+      includeAncestors: true,
+    })) as AncestorAwareIssue[];
+
+    // The cancelled child must not block the parent from rolling up to done.
+    expect(rows.find((r) => r.id === parentId)?.rolledUpStatus).toBe("done");
   });
 
   it("de-duplicates ancestors already present in the base result set", async () => {

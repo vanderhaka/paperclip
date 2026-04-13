@@ -146,11 +146,17 @@ export function InboxIssueMetaLeading({
   showIdentifier?: boolean;
   statusSlot?: ReactNode;
 }) {
+  const effectiveStatus = issue.rolledUpStatus ?? issue.status;
+  const isRolledUp = issue.rolledUpStatus !== undefined && issue.rolledUpStatus !== issue.status;
   return (
     <>
       {showStatus ? (
-        <span className="hidden shrink-0 sm:inline-flex">
-          {statusSlot ?? <StatusIcon status={issue.status} />}
+        <span
+          className="hidden shrink-0 sm:inline-flex"
+          title={isRolledUp ? "Rolled up from sub-tasks" : undefined}
+          data-inbox-rolled-up={isRolledUp ? "true" : undefined}
+        >
+          {statusSlot ?? <StatusIcon status={effectiveStatus} />}
         </span>
       ) : null}
       {showIdentifier ? (
