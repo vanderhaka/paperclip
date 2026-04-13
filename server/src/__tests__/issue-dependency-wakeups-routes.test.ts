@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { issueRoutes } from "../routes/issues.js";
 
 const mockWakeup = vi.hoisted(() => vi.fn(async () => undefined));
+const mockLoadParentReadyForReviewSignal = vi.hoisted(() => vi.fn(async () => null));
 const mockIssueService = vi.hoisted(() => ({
   getAncestors: vi.fn(),
   getById: vi.fn(),
@@ -13,8 +14,13 @@ const mockIssueService = vi.hoisted(() => ({
   getRelationSummaries: vi.fn(),
   update: vi.fn(),
   listWakeableBlockedDependents: vi.fn(),
-  getWakeableParentAfterChildCompletion: vi.fn(),
   findMentionedAgents: vi.fn(async () => []),
+}));
+
+vi.mock("../services/issue-management.js", () => ({
+  isTerminalStatus: (status: string | null | undefined) =>
+    status === "in_review" || status === "blocked" || status === "done" || status === "cancelled",
+  loadParentReadyForReviewSignal: mockLoadParentReadyForReviewSignal,
 }));
 
 vi.mock("../services/index.js", () => ({
@@ -91,7 +97,7 @@ describe("issue dependency wakeups in issue routes", () => {
     });
     mockIssueService.getRelationSummaries.mockResolvedValue({ blockedBy: [], blocks: [] });
     mockIssueService.listWakeableBlockedDependents.mockResolvedValue([]);
-    mockIssueService.getWakeableParentAfterChildCompletion.mockResolvedValue(null);
+    mockLoadParentReadyForReviewSignal.mockResolvedValue(null);
   });
 
   it("wakes dependents when the final blocker transitions to done", async () => {
@@ -188,7 +194,7 @@ describe("issue dependency wakeups in issue routes", () => {
       labels: [],
       labelIds: [],
     });
-    mockIssueService.getWakeableParentAfterChildCompletion.mockResolvedValue({
+    mockLoadParentReadyForReviewSignal.mockResolvedValue({
       id: "parent-1",
       assigneeAgentId: "agent-9",
       childIssueIds: ["child-0", "child-1"],

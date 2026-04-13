@@ -57,6 +57,10 @@ import {
 } from "../attachment-types.js";
 import { queueIssueAssignmentWakeup } from "../services/issue-assignment-wakeup.js";
 import {
+  isTerminalStatus,
+  loadParentReadyForReviewSignal,
+} from "../services/issue-management.js";
+import {
   applyIssueExecutionPolicyTransition,
   normalizeIssueExecutionPolicy,
   parseIssueExecutionState,
@@ -1832,10 +1836,10 @@ export function issueRoutes(
         }
       }
 
-      const becameTerminal =
-        !["done", "cancelled"].includes(existing.status) && ["done", "cancelled"].includes(issue.status);
-      if (becameTerminal && issue.parentId) {
-        const parent = await svc.getWakeableParentAfterChildCompletion(issue.parentId);
+      const childTransitionedToTerminal =
+        !isTerminalStatus(existing.status) && isTerminalStatus(issue.status);
+      if (childTransitionedToTerminal && issue.parentId) {
+        const parent = await loadParentReadyForReviewSignal(db, issue.parentId);
         if (parent) {
           addWakeup(parent.assigneeAgentId, {
             source: "automation",
@@ -1857,6 +1861,11 @@ export function issueRoutes(
               childIssueIds: parent.childIssueIds,
             },
           });
+        } else {
+          logger.debug(
+            { parentIssueId: issue.parentId, childIssueId: issue.id },
+            "suppressed parent ready-for-review wake: parent still managing descendants",
+          );
         }
       }
 
