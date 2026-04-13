@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
 import type { Goal } from "@paperclipai/shared";
@@ -12,6 +12,60 @@ import { formatDate, cn, agentUrl } from "../lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+
+function EditableText({
+  value,
+  placeholder,
+  onSave,
+  className,
+  type = "text",
+}: {
+  value: string;
+  placeholder: string;
+  onSave: (next: string) => void;
+  className?: string;
+  type?: "text" | "number" | "date";
+}) {
+  const [draft, setDraft] = useState(value ?? "");
+  useEffect(() => {
+    setDraft(value ?? "");
+  }, [value]);
+  const commit = () => {
+    const next = draft.trim();
+    if (next === (value ?? "")) return;
+    onSave(next);
+  };
+  return (
+    <input
+      type={type}
+      value={draft}
+      placeholder={placeholder}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") {
+          setDraft(value ?? "");
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+      className={cn(
+        "w-full rounded-sm bg-transparent px-1 py-0.5 text-sm outline-none hover:bg-accent/50 focus:bg-accent/50 focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50",
+        className,
+      )}
+    />
+  );
+}
+
+function toDateInputValue(d: Date | string | null): string {
+  if (!d) return "";
+  const date = typeof d === "string" ? new Date(d) : d;
+  if (isNaN(date.getTime())) return "";
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 interface GoalPropertiesProps {
   goal: Goal;
@@ -147,6 +201,71 @@ export function GoalProperties({ goal, onUpdate }: GoalPropertiesProps) {
             </Link>
           </PropertyRow>
         )}
+      </div>
+
+      <Separator />
+
+      <div className="space-y-1">
+        <PropertyRow label="Metric">
+          {onUpdate ? (
+            <EditableText
+              value={goal.metric ?? ""}
+              placeholder="e.g. blog posts published"
+              onSave={(metric) => onUpdate({ metric: metric || null })}
+            />
+          ) : (
+            <span className="text-sm">{goal.metric ?? "—"}</span>
+          )}
+        </PropertyRow>
+        <PropertyRow label="Current">
+          {onUpdate ? (
+            <EditableText
+              value={goal.currentValue ?? ""}
+              placeholder="0"
+              type="number"
+              onSave={(currentValue) => onUpdate({ currentValue: currentValue || null })}
+            />
+          ) : (
+            <span className="text-sm tabular-nums">{goal.currentValue ?? "—"}</span>
+          )}
+        </PropertyRow>
+        <PropertyRow label="Target">
+          {onUpdate ? (
+            <EditableText
+              value={goal.targetValue ?? ""}
+              placeholder="100"
+              type="number"
+              onSave={(targetValue) => onUpdate({ targetValue: targetValue || null })}
+            />
+          ) : (
+            <span className="text-sm tabular-nums">{goal.targetValue ?? "—"}</span>
+          )}
+        </PropertyRow>
+        <PropertyRow label="Unit">
+          {onUpdate ? (
+            <EditableText
+              value={goal.unit ?? ""}
+              placeholder="$, posts, users…"
+              onSave={(unit) => onUpdate({ unit: unit || null })}
+            />
+          ) : (
+            <span className="text-sm">{goal.unit ?? "—"}</span>
+          )}
+        </PropertyRow>
+        <PropertyRow label="Due">
+          {onUpdate ? (
+            <EditableText
+              value={toDateInputValue(goal.dueAt)}
+              placeholder=""
+              type="date"
+              onSave={(dueAt) =>
+                onUpdate({ dueAt: dueAt ? new Date(dueAt).toISOString() : null })
+              }
+            />
+          ) : (
+            <span className="text-sm">{goal.dueAt ? formatDate(goal.dueAt) : "—"}</span>
+          )}
+        </PropertyRow>
       </div>
 
       <Separator />
