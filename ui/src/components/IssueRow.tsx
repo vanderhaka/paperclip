@@ -59,6 +59,10 @@ export function IssueRow({
   const isRolledUp = issue.rolledUpStatus !== undefined && issue.rolledUpStatus !== issue.status;
   const rollupTooltip = isRolledUp ? "Rolled up from sub-tasks" : undefined;
   const detailState = withIssueDetailHeaderSeed(issueLinkState, issue);
+  const isDemoIssue = /^\s*\[demo\]\s*/i.test(issue.title);
+  const displayTitle = isDemoIssue
+    ? issue.title.replace(/^\s*\[demo\]\s*/i, "")
+    : issue.title;
   const sharedClassName = cn(
     "group flex items-start gap-2 border-b border-border py-2.5 pl-2 pr-3 text-sm no-underline text-inherit transition-colors last:border-b-0 sm:items-center sm:py-2 sm:pl-1",
     asHeader
@@ -74,7 +78,15 @@ export function IssueRow({
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1 sm:contents">
         <span className="line-clamp-2 text-sm sm:order-2 sm:min-w-0 sm:flex-1 sm:truncate sm:line-clamp-none">
-          {issue.title}{titleSuffix}
+          {isDemoIssue ? (
+            <span
+              className="mr-1.5 inline-flex shrink-0 items-center rounded-sm border border-amber-500/40 bg-amber-500/10 px-1 py-px font-mono text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 align-middle"
+              title="This is sample data — clear it from your workspace any time."
+            >
+              demo
+            </span>
+          ) : null}
+          {displayTitle}{titleSuffix}
         </span>
         <span className="flex items-center gap-2 sm:order-1 sm:shrink-0">
           {desktopLeadingSpacer ? (
