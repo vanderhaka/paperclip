@@ -99,6 +99,7 @@ vi.mock("../config.js", () => ({
     heartbeatSchedulerEnabled: false,
     heartbeatSchedulerIntervalMs: 30000,
     companyDeletionEnabled: false,
+    showDevSurfaces: false,
   })),
 }));
 
