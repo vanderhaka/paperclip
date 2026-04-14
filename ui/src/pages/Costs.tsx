@@ -52,7 +52,7 @@ function ProviderTabLabel({ provider, rows }: { provider: string; rows: CostByPr
   return (
     <span className="flex items-center gap-1.5">
       <span>{providerDisplayName(provider)}</span>
-      <span className="font-mono text-xs text-muted-foreground">{formatTokens(totalTokens)}</span>
+      <span className="font-mono text-xs text-muted-foreground" title="tokens">{formatTokens(totalTokens)} tok</span>
       <span className="text-xs text-muted-foreground">{formatCents(totalCost)}</span>
     </span>
   );
@@ -64,7 +64,7 @@ function BillerTabLabel({ biller, rows }: { biller: string; rows: CostByBiller[]
   return (
     <span className="flex items-center gap-1.5">
       <span>{providerDisplayName(biller)}</span>
-      <span className="font-mono text-xs text-muted-foreground">{formatTokens(totalTokens)}</span>
+      <span className="font-mono text-xs text-muted-foreground" title="tokens">{formatTokens(totalTokens)} tok</span>
       <span className="text-xs text-muted-foreground">{formatCents(totalCost)}</span>
     </span>
   );
@@ -134,16 +134,16 @@ function FinanceSummaryCard({
   return (
     <Card>
       <CardHeader className="px-5 pt-5 pb-2">
-        <CardTitle className="text-base">Finance ledger</CardTitle>
+        <CardTitle className="text-base">Billing log</CardTitle>
         <CardDescription>
-          Account-level charges that do not map to a single inference request.
+          Account-level charges that aren&apos;t tied to a single AI request — fees, top-ups, refunds, and credits.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 px-5 pb-5 pt-2 sm:grid-cols-2 xl:grid-cols-4">
         <MetricTile
-          label="Debits"
+          label="Charges"
           value={formatCents(debitCents)}
-          subtitle={`${eventCount} total event${eventCount === 1 ? "" : "s"} in range`}
+          subtitle={`${eventCount} total entr${eventCount === 1 ? "y" : "ies"} in range`}
           icon={ArrowUpRight}
         />
         <MetricTile
@@ -155,13 +155,13 @@ function FinanceSummaryCard({
         <MetricTile
           label="Net"
           value={formatCents(netCents)}
-          subtitle="Debit minus credit for the selected period"
+          subtitle="Charges minus credits for the selected period"
           icon={ReceiptText}
         />
         <MetricTile
           label="Estimated"
           value={formatCents(estimatedDebitCents)}
-          subtitle="Estimated debits that are not yet invoice-authoritative"
+          subtitle="Charges estimated from usage, not yet on a vendor invoice"
           icon={Coins}
         />
       </CardContent>
@@ -496,7 +496,7 @@ export function Costs() {
             <span>All providers</span>
             {providerKeys.length > 0 ? (
               <>
-                <span className="font-mono text-xs text-muted-foreground">{formatTokens(allTokens)}</span>
+                <span className="font-mono text-xs text-muted-foreground" title="tokens">{formatTokens(allTokens)} tok</span>
                 <span className="text-xs text-muted-foreground">{formatCents(allCents)}</span>
               </>
             ) : null}
@@ -525,10 +525,10 @@ export function Costs() {
         value: "all",
         label: (
           <span className="flex items-center gap-1.5">
-            <span>All billers</span>
+            <span>All vendors</span>
             {billerKeys.length > 0 ? (
               <>
-                <span className="font-mono text-xs text-muted-foreground">{formatTokens(allTokens)}</span>
+                <span className="font-mono text-xs text-muted-foreground" title="tokens">{formatTokens(allTokens)} tok</span>
                 <span className="text-xs text-muted-foreground">{formatCents(allCents)}</span>
               </>
             ) : null}
@@ -578,7 +578,7 @@ export function Costs() {
             <div>
                 <h1 className="text-3xl font-semibold tracking-tight">Spend</h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Month-to-date spend and forecast, plus the underlying AI usage, platform fees, credits, and live quota windows.
+                  Month-to-date spend and forecast, plus the underlying AI usage, platform fees, credits, and live vendor quota windows.
                 </p>
             </div>
 
@@ -616,9 +616,9 @@ export function Costs() {
 
           <div className="grid gap-3 lg:grid-cols-4">
             <MetricTile
-              label="Inference spend"
+              label="AI spend"
               value={formatCents(spendData?.summary.spendCents ?? 0)}
-              subtitle={`${formatTokens(inferenceTokenTotal)} tokens across request-scoped events`}
+              subtitle={`${formatTokens(inferenceTokenTotal)} tokens used across AI requests`}
               icon={DollarSign}
             />
             <MetricTile
@@ -633,7 +633,7 @@ export function Costs() {
                   ? `${budgetData?.pausedAgentCount ?? 0} agents paused · ${budgetData?.pausedProjectCount ?? 0} projects paused`
                   : spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
                     ? `${formatCents(spendData.summary.spendCents)} of ${formatCents(spendData.summary.budgetCents)}`
-                    : "No monthly cap configured"
+                    : "No monthly cap set"
               }
               icon={Coins}
               tone={
@@ -644,13 +644,13 @@ export function Costs() {
               }
             />
             <MetricTile
-              label="Finance net"
+              label="Billing net"
               value={formatCents(financeData?.summary.netCents ?? 0)}
-              subtitle={`${formatCents(financeData?.summary.debitCents ?? 0)} debits · ${formatCents(financeData?.summary.creditCents ?? 0)} credits`}
+              subtitle={`${formatCents(financeData?.summary.debitCents ?? 0)} charges · ${formatCents(financeData?.summary.creditCents ?? 0)} credits`}
               icon={ReceiptText}
             />
             <MetricTile
-              label="Finance events"
+              label="Billing entries"
               value={String(financeData?.summary.eventCount ?? 0)}
               subtitle={`${formatCents(financeData?.summary.estimatedDebitCents ?? 0)} estimated in range`}
               icon={ArrowUpRight}
@@ -663,8 +663,8 @@ export function Costs() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="budgets">Budgets</TabsTrigger>
           <TabsTrigger value="providers">Providers</TabsTrigger>
-          <TabsTrigger value="billers">Billers</TabsTrigger>
-          <TabsTrigger value="finance">Finance</TabsTrigger>
+          <TabsTrigger value="billers">Vendors</TabsTrigger>
+          <TabsTrigger value="finance">Billing</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
@@ -698,9 +698,9 @@ export function Costs() {
               <div className="grid gap-4 xl:grid-cols-[1.3fr,1fr]">
                 <Card>
                   <CardHeader className="px-5 pt-5 pb-2">
-                    <CardTitle className="text-base">Inference ledger</CardTitle>
+                    <CardTitle className="text-base">AI usage log</CardTitle>
                     <CardDescription>
-                      Request-scoped inference spend for the selected period.
+                      Per-request AI usage and spend for the selected period.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 px-5 pb-5 pt-2">
@@ -715,14 +715,14 @@ export function Costs() {
                           </div>
                         ) : (
                           <div className="mt-1 text-sm text-amber-700 dark:text-amber-400">
-                            No monthly cap set
+                            No cap set
                           </div>
                         )}
                       </div>
                       <div className="border border-border px-4 py-3 text-right">
-                        <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">usage</div>
-                        <div className="mt-1 text-lg font-medium tabular-nums">
-                          {formatTokens(inferenceTokenTotal)}
+                        <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">tokens used</div>
+                        <div className="mt-1 text-lg font-medium tabular-nums" title="tokens">
+                          {formatTokens(inferenceTokenTotal)} tok
                         </div>
                       </div>
                     </div>
@@ -791,16 +791,16 @@ export function Costs() {
                               </div>
                               <div className="text-right text-sm tabular-nums">
                                 <div className="font-medium">{formatCents(row.costCents)}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  in {formatTokens(row.inputTokens + row.cachedInputTokens)} · out {formatTokens(row.outputTokens)}
+                                <div className="text-xs text-muted-foreground" title="input and output tokens">
+                                  {formatTokens(row.inputTokens + row.cachedInputTokens)} tok in · {formatTokens(row.outputTokens)} tok out
                                 </div>
                                 {(row.apiRunCount > 0 || row.subscriptionRunCount > 0) ? (
                                   <div className="text-xs text-muted-foreground">
-                                    {row.apiRunCount > 0 ? `${row.apiRunCount} api` : "0 api"}
+                                    {row.apiRunCount > 0 ? `${row.apiRunCount} metered run${row.apiRunCount === 1 ? "" : "s"}` : "0 metered runs"}
                                     {" · "}
                                     {row.subscriptionRunCount > 0
-                                      ? `${row.subscriptionRunCount} subscription`
-                                      : "0 subscription"}
+                                      ? `${row.subscriptionRunCount} subscription run${row.subscriptionRunCount === 1 ? "" : "s"}`
+                                      : "0 subscription runs"}
                                   </div>
                                 ) : null}
                               </div>
@@ -869,7 +869,7 @@ export function Costs() {
                     </CardContent>
                   </Card>
 
-                  <FinanceTimelineCard rows={topFinanceEvents.slice(0, 6)} emptyMessage="No finance events yet. Add account-level charges once biller invoices or credits land." />
+                  <FinanceTimelineCard rows={topFinanceEvents.slice(0, 6)} emptyMessage="No billing entries yet. These appear once vendor invoices or credits land." />
                 </div>
               </div>
             </>
@@ -885,9 +885,9 @@ export function Costs() {
             <>
               <Card className="border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))]">
                 <CardHeader className="px-5 pt-5 pb-3">
-                  <CardTitle className="text-base">Budget control plane</CardTitle>
+                  <CardTitle className="text-base">Budget controls</CardTitle>
                   <CardDescription>
-                    Hard-stop spend limits for agents and projects. Provider subscription quota stays separate and appears under Providers.
+                    Hard-stop spend limits for agents and projects. Provider subscription quota is separate — see the Providers tab.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-3 px-5 pb-5 pt-0 md:grid-cols-4">
@@ -1058,7 +1058,7 @@ export function Costs() {
 
                 <TabsContent value="all" className="mt-4">
                   {billers.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No billable events in this period.</p>
+                    <p className="text-sm text-muted-foreground">No vendor spend in this period.</p>
                   ) : (
                     <div className="grid gap-4 md:grid-cols-2">
                       {billers.map((biller) => {
@@ -1122,12 +1122,12 @@ export function Costs() {
                 <div className="space-y-4">
                   <Card>
                     <CardHeader className="px-5 pt-5 pb-2">
-                      <CardTitle className="text-base">By biller</CardTitle>
-                      <CardDescription>Account-level financial events grouped by who charged or credited them.</CardDescription>
+                      <CardTitle className="text-base">By vendor</CardTitle>
+                      <CardDescription>Account-level charges grouped by vendor (who charged or credited us).</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4 px-5 pb-5 pt-2 md:grid-cols-2">
                       {(financeData?.byBiller.length ?? 0) === 0 ? (
-                        <p className="text-sm text-muted-foreground">No finance events yet.</p>
+                        <p className="text-sm text-muted-foreground">No billing entries yet.</p>
                       ) : (
                         financeData?.byBiller.map((row) => <FinanceBillerCard key={row.biller} row={row} />)
                       )}

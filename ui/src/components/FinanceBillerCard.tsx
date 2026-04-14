@@ -14,7 +14,7 @@ export function FinanceBillerCard({ row }: FinanceBillerCardProps) {
           <div>
             <CardTitle className="text-base">{providerDisplayName(row.biller)}</CardTitle>
             <CardDescription className="mt-1 text-xs">
-              {row.eventCount} event{row.eventCount === 1 ? "" : "s"} across {row.kindCount} kind{row.kindCount === 1 ? "" : "s"}
+              {row.eventCount} entr{row.eventCount === 1 ? "y" : "ies"} across {row.kindCount} type{row.kindCount === 1 ? "" : "s"}
             </CardDescription>
           </div>
           <div className="text-right">
@@ -26,7 +26,7 @@ export function FinanceBillerCard({ row }: FinanceBillerCardProps) {
       <CardContent className="space-y-3 px-4 pb-4 pt-3">
         <div className="grid gap-2 text-sm sm:grid-cols-3">
           <div className="border border-border p-3">
-            <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">debits</div>
+            <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">charges</div>
             <div className="mt-1 font-medium tabular-nums">{formatCents(row.debitCents)}</div>
           </div>
           <div className="border border-border p-3">

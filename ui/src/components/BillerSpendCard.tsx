@@ -62,9 +62,9 @@ export function BillerSpendCard({
               {providerDisplayName(row.biller)}
             </CardTitle>
             <CardDescription className="text-xs mt-0.5">
-              <span className="font-mono">{formatTokens(row.inputTokens + row.cachedInputTokens)}</span> in
+              <span className="font-mono" title="input tokens">{formatTokens(row.inputTokens + row.cachedInputTokens)} tok in</span>
               {" · "}
-              <span className="font-mono">{formatTokens(row.outputTokens)}</span> out
+              <span className="font-mono" title="output tokens">{formatTokens(row.outputTokens)} tok out</span>
               {" · "}
               {row.providerCount} provider{row.providerCount === 1 ? "" : "s"}
               {" · "}
