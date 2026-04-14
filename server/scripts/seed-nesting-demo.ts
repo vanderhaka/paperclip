@@ -4,13 +4,38 @@
 // Scenario 2 — 3-level chain (CEO → manager → engineer) with only the leaf
 //              touched by the user (grandparent + parent both as ancestors).
 //
-// Run: pnpm --filter @paperclipai/server exec tsx ./scripts/seed-nesting-demo.ts
+// Gating:
+//   - This script is opt-in. It refuses to run unless
+//     `PAPERCLIP_SEED_DEMO_DATA=true` is set in the environment. This prevents
+//     `[demo]` rows from bleeding into real first-run inboxes when the script
+//     is invoked accidentally (muscle memory, CI, another agent, etc.).
+//   - Pass `--clean` to purge (soft-hide) any existing `[demo]%` rows and exit
+//     without re-seeding. Useful for restoring a clean inbox on a dev DB that
+//     was previously seeded.
+//
+// Run (seed):  PAPERCLIP_SEED_DEMO_DATA=true pnpm --filter @paperclipai/server seed:demo
+// Run (clean): PAPERCLIP_SEED_DEMO_DATA=true pnpm --filter @paperclipai/server seed:demo:clean
 
 import { createDb, companies, agents, issues } from "@paperclipai/db";
 import { and, eq, like } from "drizzle-orm";
 import { issueService } from "../src/services/issues.ts";
 
 const REAL_USER_ID = "GLcgAQMPQNKcLkxEm5M4PMh0mh6odDDe"; // James
+
+const SEED_FLAG = process.env.PAPERCLIP_SEED_DEMO_DATA;
+const CLEAN_ONLY = process.argv.includes("--clean");
+
+if (SEED_FLAG !== "true") {
+  console.error(
+    "Refusing to run: demo seeding is gated behind PAPERCLIP_SEED_DEMO_DATA=true.\n" +
+      "This prevents [demo] rows from polluting real first-run inboxes.\n\n" +
+      "To seed demo scenarios:\n" +
+      "  PAPERCLIP_SEED_DEMO_DATA=true pnpm --filter @paperclipai/server seed:demo\n\n" +
+      "To purge previously-seeded demo rows without re-seeding:\n" +
+      "  PAPERCLIP_SEED_DEMO_DATA=true pnpm --filter @paperclipai/server seed:demo:clean",
+  );
+  process.exit(1);
+}
 
 const db = createDb("postgres://paperclip:paperclip@127.0.0.1:54329/paperclip");
 
@@ -33,6 +58,11 @@ async function main() {
     .set({ hiddenAt: new Date() })
     .where(and(eq(issues.companyId, company.id), like(issues.title, "[demo]%")));
   console.log(`hid previous demo issues (update result: ${JSON.stringify(hideResult)})`);
+
+  if (CLEAN_ONLY) {
+    console.log("\n--clean specified — purge complete, skipping re-seed.");
+    process.exit(0);
+  }
 
   const agentRows = await db
     .select({ id: agents.id, name: agents.name })
