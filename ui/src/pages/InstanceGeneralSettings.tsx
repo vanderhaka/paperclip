@@ -118,7 +118,7 @@ export function InstanceGeneralSettings() {
             <h2 className="text-sm font-semibold">Keyboard shortcuts</h2>
             <p className="max-w-2xl text-sm text-muted-foreground">
               Enable app keyboard shortcuts, including inbox navigation and global shortcuts like creating issues or
-              toggling panels. This is off by default.
+              toggling panels. On by default. Press <kbd className="rounded border border-border bg-muted px-1 py-0.5 text-xs">?</kbd> anywhere to see the full list.
             </p>
           </div>
           <ToggleSwitch

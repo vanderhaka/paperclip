@@ -96,6 +96,16 @@ export function createBetterAuthInstance(db: Db, config: Config, trustedOrigins?
       enabled: true,
       requireEmailVerification: false,
       disableSignUp: config.authDisableSignUp,
+      // TODO: Wire this to a real email transport once SMTP/Resend/etc is configured.
+      // Until then, the reset URL is written to the server log so an admin can hand it
+      // to the user. The UI warns about this on the forgot-password page.
+      sendResetPassword: async ({ user, url }: { user: { email?: string | null }; url: string }) => {
+        // eslint-disable-next-line no-console
+        console.log(
+          `[auth] password reset requested for ${user.email ?? "unknown user"}. ` +
+            `No email transport is configured — share this link with the user manually: ${url}`,
+        );
+      },
     },
     ...(isHttpOnly ? { advanced: { useSecureCookies: false } } : {}),
   };

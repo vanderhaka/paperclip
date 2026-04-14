@@ -71,4 +71,13 @@ export const authApi = {
   signOut: async () => {
     await authPost("/sign-out", {});
   },
+
+  requestPasswordReset: async (input: { email: string; redirectTo: string }) => {
+    // Better Auth 1.4 uses /request-password-reset; /forget-password is a legacy alias.
+    await authPost("/request-password-reset", input);
+  },
+
+  resetPassword: async (input: { token: string; newPassword: string }) => {
+    await authPost("/reset-password", input);
+  },
 };
