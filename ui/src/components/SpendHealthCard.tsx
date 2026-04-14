@@ -4,10 +4,12 @@ import { AlertTriangle, TrendingUp } from "lucide-react";
 import { dashboardApi } from "../api/dashboard";
 import { queryKeys } from "../lib/queryKeys";
 import { cn, formatCents } from "../lib/utils";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   companyId: string;
   className?: string;
+  onSetCap?: () => void;
 }
 
 interface Forecast {
@@ -31,7 +33,9 @@ function computeForecast(monthSpendCents: number, monthBudgetCents: number, now 
   const forecastMonthCents = Math.round(dailyPaceCents * daysInMonth);
   const hasCap = monthBudgetCents > 0;
 
-  let tone: Forecast["tone"] = "muted";
+  // When no cap is set, agent spend is effectively uncapped — surface as a
+  // warning so users don't mistake the neutral grey for "this is fine".
+  let tone: Forecast["tone"] = "warning";
   let overCapBy: number | null = null;
   let capHitDate: Date | null = null;
 
@@ -68,7 +72,7 @@ function formatShortDate(d: Date): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function SpendHealthCard({ companyId, className }: Props) {
+export function SpendHealthCard({ companyId, className, onSetCap }: Props) {
   const { data } = useQuery({
     queryKey: queryKeys.dashboard(companyId),
     queryFn: () => dashboardApi.summary(companyId),
@@ -95,18 +99,19 @@ export function SpendHealthCard({ companyId, className }: Props) {
       : forecast.tone === "warning"
         ? `Forecast is close to your monthly cap`
         : `On pace to stay under your monthly cap`
-    : `Forecast: ${formatCents(forecast.forecastMonthCents)} this month — no cap set`;
+    : `No monthly cap set — agent spend is uncapped`;
 
-  const Icon = forecast.tone === "danger" ? AlertTriangle : TrendingUp;
+  // No cap is a warning state (amber). Danger on actual forecast overrun.
+  const Icon = forecast.tone === "danger" || !forecast.hasCap ? AlertTriangle : TrendingUp;
 
   return (
     <div
+      role={!forecast.hasCap ? "alert" : undefined}
       className={cn(
         "rounded-md border bg-card p-4 space-y-3",
         forecast.tone === "danger" && "border-red-500/30",
         forecast.tone === "warning" && "border-amber-500/30",
         forecast.tone === "ok" && "border-border",
-        forecast.tone === "muted" && "border-border",
         className,
       )}
     >
@@ -117,7 +122,6 @@ export function SpendHealthCard({ companyId, className }: Props) {
             forecast.tone === "danger" && "text-red-600 dark:text-red-400",
             forecast.tone === "warning" && "text-amber-600 dark:text-amber-400",
             forecast.tone === "ok" && "text-emerald-600 dark:text-emerald-400",
-            forecast.tone === "muted" && "text-muted-foreground",
           )}
         />
         <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -125,13 +129,25 @@ export function SpendHealthCard({ companyId, className }: Props) {
         </span>
       </div>
 
-      <p className={cn(
-        "text-sm font-medium",
-        forecast.tone === "danger" && "text-red-600 dark:text-red-400",
-        forecast.tone === "warning" && "text-amber-700 dark:text-amber-400",
-      )}>
-        {headline}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className={cn(
+          "text-sm font-medium",
+          forecast.tone === "danger" && "text-red-600 dark:text-red-400",
+          forecast.tone === "warning" && "text-amber-700 dark:text-amber-400",
+        )}>
+          {headline}
+        </p>
+        {!forecast.hasCap && onSetCap && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onSetCap}
+            className="border-amber-500/40 bg-amber-50 text-amber-900 hover:bg-amber-100 hover:text-amber-900 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-900/40"
+          >
+            Set monthly cap
+          </Button>
+        )}
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
@@ -161,19 +177,23 @@ export function SpendHealthCard({ companyId, className }: Props) {
           <div className={cn(
             "mt-1 text-lg font-semibold tabular-nums",
             forecast.tone === "danger" && "text-red-600 dark:text-red-400",
+            !forecast.hasCap && "text-amber-700 dark:text-amber-400",
           )}>
             {forecast.capHitDate
               ? formatShortDate(forecast.capHitDate)
               : forecast.hasCap
                 ? formatCents(Math.max(0, forecast.capCents - forecast.forecastMonthCents))
-                : "—"}
+                : "Not set"}
           </div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className={cn(
+            "text-[11px]",
+            !forecast.hasCap ? "text-amber-700/80 dark:text-amber-400/80" : "text-muted-foreground",
+          )}>
             {forecast.capHitDate
               ? "at current pace"
               : forecast.hasCap
                 ? "left at forecast pace"
-                : "set one on /costs"}
+                : "agents can spend freely"}
           </div>
         </div>
       </div>

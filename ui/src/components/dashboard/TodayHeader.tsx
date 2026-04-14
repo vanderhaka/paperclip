@@ -51,19 +51,24 @@ function HeaderCard({
   to,
   icon: Icon,
   label,
+  tone = "default",
   children,
 }: {
   to: string;
   icon: typeof Target;
   label: string;
+  tone?: "default" | "warning";
   children: React.ReactNode;
 }) {
+  const isWarning = tone === "warning";
   return (
     <Link
       to={to}
       className={cn(
-        "group flex flex-col gap-2 rounded-md border border-border bg-card p-3 text-inherit no-underline transition-colors",
-        "hover:border-foreground/20 hover:bg-accent/30",
+        "group flex flex-col gap-2 rounded-md border bg-card p-3 text-inherit no-underline transition-colors",
+        isWarning
+          ? "border-amber-500/40 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/40"
+          : "border-border hover:border-foreground/20 hover:bg-accent/30",
       )}
     >
       <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -149,9 +154,17 @@ function SpendCard({
         : "ok";
 
   return (
-    <HeaderCard to="/costs" icon={DollarSign} label="Spend this month">
+    <HeaderCard
+      to={!hasBudget ? "/costs?tab=budgets" : "/costs"}
+      icon={DollarSign}
+      label="Spend this month"
+      tone={!hasBudget ? "warning" : "default"}
+    >
       <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-bold tabular-nums text-foreground">
+        <span className={cn(
+          "text-2xl font-bold tabular-nums",
+          !hasBudget ? "text-amber-900 dark:text-amber-100" : "text-foreground",
+        )}>
           {formatCents(monthSpendCents)}
         </span>
         {hasBudget ? (
@@ -159,10 +172,12 @@ function SpendCard({
             of {formatCents(monthBudgetCents)} cap
           </span>
         ) : (
-          <span className="text-sm text-amber-600 dark:text-amber-400">No cap set</span>
+          <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+            No cap set
+          </span>
         )}
       </div>
-      {hasBudget && (
+      {hasBudget ? (
         <div className="space-y-1">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div
@@ -185,6 +200,10 @@ function SpendCard({
             {Math.round(monthUtilizationPercent)}% used
           </span>
         </div>
+      ) : (
+        <span className="text-xs font-medium text-amber-700 underline underline-offset-2 dark:text-amber-300">
+          Set monthly cap
+        </span>
       )}
     </HeaderCard>
   );
