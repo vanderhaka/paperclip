@@ -9,6 +9,16 @@ import { queryKeys } from "../lib/queryKeys";
 import { AGENT_ROLES } from "@paperclipai/shared";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Popover,
   PopoverContent,
@@ -24,6 +34,10 @@ import { useDisabledAdaptersSync } from "../adapters/use-disabled-adapters";
 import { isValidAdapterType } from "../adapters/metadata";
 import { ReportsToPicker } from "../components/ReportsToPicker";
 import { buildNewAgentRuntimeConfig } from "../lib/new-agent-runtime-config";
+
+const SIMPLE_DESCRIPTION_MAX = 280;
+
+type AgentFormMode = "simple" | "advanced";
 import {
   DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
   DEFAULT_CODEX_LOCAL_MODEL,
@@ -58,9 +72,11 @@ export function NewAgent() {
   const [searchParams] = useSearchParams();
   const presetAdapterType = searchParams.get("adapterType");
 
+  const [mode, setMode] = useState<AgentFormMode>("simple");
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [role, setRole] = useState("general");
+  const [simpleDescription, setSimpleDescription] = useState("");
   const [reportsTo, setReportsTo] = useState<string | null>(null);
   const [configValues, setConfigValues] = useState<CreateConfigValues>(defaultCreateValues);
   const [selectedSkillKeys, setSelectedSkillKeys] = useState<string[]>([]);
@@ -137,7 +153,31 @@ export function NewAgent() {
     return adapter.buildAdapterConfig(configValues);
   }
 
+  function handleSimpleSubmit() {
+    if (!selectedCompanyId || !name.trim()) return;
+    setFormError(null);
+    const simpleValues = defaultCreateValues;
+    const simpleAdapter = getUIAdapter(simpleValues.adapterType);
+    const description = simpleDescription.trim();
+    createAgent.mutate({
+      name: name.trim(),
+      role: effectiveRole,
+      ...(description ? { capabilities: description } : {}),
+      adapterType: simpleValues.adapterType,
+      adapterConfig: simpleAdapter.buildAdapterConfig(simpleValues),
+      runtimeConfig: buildNewAgentRuntimeConfig({
+        heartbeatEnabled: simpleValues.heartbeatEnabled,
+        intervalSec: simpleValues.intervalSec,
+      }),
+      budgetMonthlyCents: 0,
+    });
+  }
+
   function handleSubmit() {
+    if (mode === "simple") {
+      handleSimpleSubmit();
+      return;
+    }
     if (!selectedCompanyId || !name.trim()) return;
     setFormError(null);
     if (configValues.adapterType === "opencode_local") {
@@ -195,15 +235,111 @@ export function NewAgent() {
     });
   }
 
+  const descriptionRemaining = SIMPLE_DESCRIPTION_MAX - simpleDescription.length;
+  const simpleSubmitDisabled =
+    !name.trim() || createAgent.isPending || simpleDescription.length > SIMPLE_DESCRIPTION_MAX;
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold">New Agent</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Advanced agent configuration
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-semibold">New Agent</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {mode === "simple"
+              ? "Tell us who they are and what they do — we'll handle the rest."
+              : "Advanced agent configuration"}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setMode(mode === "simple" ? "advanced" : "simple")}
+          className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          {mode === "simple" ? "Show advanced options" : "Back to simple form"}
+        </button>
       </div>
 
+      {mode === "simple" ? (
+        <div className="border border-border">
+          <div className="space-y-5 px-4 py-5">
+            <div className="space-y-2">
+              <Label htmlFor="simple-agent-name">Name</Label>
+              <Input
+                id="simple-agent-name"
+                placeholder="e.g. Marketing Manager, Customer Support"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="simple-agent-role">Role</Label>
+              <Select
+                value={effectiveRole}
+                onValueChange={(next) => setRole(next)}
+                disabled={isFirstAgent}
+              >
+                <SelectTrigger id="simple-agent-role" className="w-full">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {AGENT_ROLES.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {roleLabels[r] ?? r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {isFirstAgent && (
+                <p className="text-xs text-muted-foreground">
+                  Your first agent is always the CEO.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="simple-agent-description">What they do</Label>
+              <Textarea
+                id="simple-agent-description"
+                placeholder="One line: what this agent is responsible for."
+                value={simpleDescription}
+                onChange={(e) =>
+                  setSimpleDescription(e.target.value.slice(0, SIMPLE_DESCRIPTION_MAX))
+                }
+                maxLength={SIMPLE_DESCRIPTION_MAX}
+                rows={3}
+              />
+              <p
+                className={cn(
+                  "text-xs text-muted-foreground text-right",
+                  descriptionRemaining < 20 && "text-amber-600",
+                )}
+              >
+                {descriptionRemaining} characters left
+              </p>
+            </div>
+          </div>
+
+          <div className="border-t border-border px-4 py-3">
+            {formError && (
+              <p className="text-xs text-destructive mb-2">{formError}</p>
+            )}
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => navigate("/agents")}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={simpleSubmitDisabled}
+                onClick={handleSubmit}
+              >
+                {createAgent.isPending ? "Creating…" : "Create agent"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="border border-border">
         {/* Name */}
         <div className="px-4 pt-4 pb-2">
@@ -333,6 +469,7 @@ export function NewAgent() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
