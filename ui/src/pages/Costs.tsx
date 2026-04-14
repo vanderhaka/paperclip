@@ -25,6 +25,7 @@ import { PageTabBar } from "../components/PageTabBar";
 import { ProviderQuotaCard } from "../components/ProviderQuotaCard";
 import { SpendHealthCard } from "../components/SpendHealthCard";
 import { StatusBadge } from "../components/StatusBadge";
+import { useSearchParams } from "@/lib/router";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useCompany } from "../context/CompanyContext";
 import { useDateRange, PRESET_KEYS, PRESET_LABELS } from "../hooks/useDateRange";
@@ -74,22 +75,43 @@ function MetricTile({
   value,
   subtitle,
   icon: Icon,
+  tone = "default",
 }: {
   label: string;
   value: string;
   subtitle: string;
   icon: ComponentType<{ className?: string }>;
+  tone?: "default" | "warning";
 }) {
+  const isWarning = tone === "warning";
   return (
-    <div className="border border-border p-4">
+    <div className={cn(
+      "border p-4",
+      isWarning ? "border-amber-500/40 bg-amber-50 dark:bg-amber-950/40" : "border-border",
+    )}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
-          <div className="mt-2 text-2xl font-semibold tabular-nums">{value}</div>
-          <div className="mt-1 text-xs leading-5 text-muted-foreground">{subtitle}</div>
+          <div className={cn(
+            "text-[11px] uppercase tracking-[0.16em]",
+            isWarning ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground",
+          )}>{label}</div>
+          <div className={cn(
+            "mt-2 text-2xl font-semibold tabular-nums",
+            isWarning && "text-amber-900 dark:text-amber-100",
+          )}>{value}</div>
+          <div className={cn(
+            "mt-1 text-xs leading-5",
+            isWarning ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground",
+          )}>{subtitle}</div>
         </div>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-border">
-          <Icon className="h-4 w-4 text-muted-foreground" />
+        <div className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center border",
+          isWarning ? "border-amber-500/40" : "border-border",
+        )}>
+          <Icon className={cn(
+            "h-4 w-4",
+            isWarning ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",
+          )} />
         </div>
       </div>
     </div>
@@ -152,7 +174,13 @@ export function Costs() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
 
-  const [mainTab, setMainTab] = useState<"overview" | "budgets" | "providers" | "billers" | "finance">("overview");
+  const [searchParams] = useSearchParams();
+  const initialTab = (() => {
+    const t = searchParams.get("tab");
+    if (t === "budgets" || t === "providers" || t === "billers" || t === "finance") return t;
+    return "overview" as const;
+  })();
+  const [mainTab, setMainTab] = useState<"overview" | "budgets" | "providers" | "billers" | "finance">(initialTab);
   const [activeProvider, setActiveProvider] = useState("all");
   const [activeBiller, setActiveBiller] = useState("all");
 
@@ -539,7 +567,12 @@ export function Costs() {
 
   return (
     <div className="space-y-6">
-      {selectedCompanyId && <SpendHealthCard companyId={selectedCompanyId} />}
+      {selectedCompanyId && (
+        <SpendHealthCard
+          companyId={selectedCompanyId}
+          onSetCap={() => setMainTab("budgets")}
+        />
+      )}
       <div className="space-y-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -593,7 +626,7 @@ export function Costs() {
               value={activeBudgetIncidents.length > 0 ? String(activeBudgetIncidents.length) : (
                 spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
                   ? `${spendData.summary.utilizationPercent}%`
-                  : "Open"
+                  : "No cap"
               )}
               subtitle={
                 activeBudgetIncidents.length > 0
@@ -603,6 +636,12 @@ export function Costs() {
                     : "No monthly cap configured"
               }
               icon={Coins}
+              tone={
+                activeBudgetIncidents.length === 0 &&
+                !(spendData?.summary.budgetCents && spendData.summary.budgetCents > 0)
+                  ? "warning"
+                  : "default"
+              }
             />
             <MetricTile
               label="Finance net"
@@ -670,11 +709,15 @@ export function Costs() {
                         <div className="text-3xl font-semibold tabular-nums">
                           {formatCents(spendData?.summary.spendCents ?? 0)}
                         </div>
-                        <div className="mt-1 text-sm text-muted-foreground">
-                          {spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
-                            ? `Budget ${formatCents(spendData.summary.budgetCents)}`
-                            : "Unlimited budget"}
-                        </div>
+                        {spendData?.summary.budgetCents && spendData.summary.budgetCents > 0 ? (
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            Budget {formatCents(spendData.summary.budgetCents)}
+                          </div>
+                        ) : (
+                          <div className="mt-1 text-sm text-amber-700 dark:text-amber-400">
+                            No monthly cap set
+                          </div>
+                        )}
                       </div>
                       <div className="border border-border px-4 py-3 text-right">
                         <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">usage</div>

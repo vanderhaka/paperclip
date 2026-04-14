@@ -266,11 +266,15 @@ export function Dashboard() {
               label="Month Spend"
               to="/costs"
               description={
-                <span>
-                  {data.costs.monthBudgetCents > 0
-                    ? `${data.costs.monthUtilizationPercent}% of ${formatCents(data.costs.monthBudgetCents)} budget`
-                    : "Unlimited budget"}
-                </span>
+                data.costs.monthBudgetCents > 0 ? (
+                  <span>
+                    {data.costs.monthUtilizationPercent}% of {formatCents(data.costs.monthBudgetCents)} budget
+                  </span>
+                ) : (
+                  <span className="text-amber-700 dark:text-amber-400 font-medium">
+                    No monthly cap — set one
+                  </span>
+                )
               }
             />
             <MetricCard
