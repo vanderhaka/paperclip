@@ -3,24 +3,24 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 
 const SURFACES = [
   {
-    title: "Inference ledger",
-    description: "Request-scoped usage and billed runs from cost_events.",
+    title: "AI usage log",
+    description: "Per-request AI usage and billed runs.",
     icon: Database,
-    points: ["tokens + billed dollars", "provider, biller, model", "subscription and overage aware"],
+    points: ["tokens + billed dollars", "provider, vendor, model", "subscription and overage aware"],
     tone: "from-sky-500/12 via-sky-500/6 to-transparent",
   },
   {
-    title: "Finance ledger",
-    description: "Account-level charges that are not one prompt-response pair.",
+    title: "Billing log",
+    description: "Account-level charges that aren't tied to a single AI request.",
     icon: ReceiptText,
     points: ["top-ups, refunds, fees", "Bedrock provisioned or training charges", "credit expiries and adjustments"],
     tone: "from-amber-500/14 via-amber-500/6 to-transparent",
   },
   {
     title: "Live quotas",
-    description: "Provider or biller windows that can stop traffic in real time.",
+    description: "Provider or vendor windows that can stop traffic in real time.",
     icon: Gauge,
-    points: ["provider quota windows", "biller credit systems", "errors surfaced directly"],
+    points: ["provider quota windows", "vendor credit systems", "errors surfaced directly"],
     tone: "from-emerald-500/14 via-emerald-500/6 to-transparent",
   },
 ] as const;
@@ -34,8 +34,8 @@ export function AccountingModelCard() {
           Accounting model
         </CardTitle>
         <CardDescription className="max-w-2xl text-sm leading-6">
-          Paperclip now separates request-level inference usage from account-level finance events.
-          That keeps provider reporting honest when the biller is OpenRouter, Cloudflare, Bedrock, or another intermediary.
+          Paperclip separates per-request AI usage from account-level billing charges.
+          That keeps provider reporting honest when the vendor is OpenRouter, Cloudflare, Bedrock, or another intermediary.
         </CardDescription>
       </CardHeader>
       <CardContent className="relative grid gap-3 px-5 pb-5 md:grid-cols-3">
