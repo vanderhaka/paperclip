@@ -142,6 +142,29 @@
   label {
     touch-action: manipulation;
   }
+  /* Global keyboard-focus ring. Applies to any interactive element
+     that hasn't opted out with its own focus-visible treatment. The
+     shadcn Button already paints its own ring — this rule makes sure
+     native <button>, <a>, inputs, tabs, and [role="button"] elements
+     without a variant still show a visible focus indicator for
+     keyboard users. Uses the existing --ring design token. */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  summary:focus-visible,
+  [role="button"]:focus-visible,
+  [role="tab"]:focus-visible,
+  [role="link"]:focus-visible,
+  [role="menuitem"]:focus-visible,
+  [role="checkbox"]:focus-visible,
+  [role="radio"]:focus-visible,
+  [role="switch"]:focus-visible,
+  [tabindex]:not([tabindex="-1"]):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
   /* Let font-mono (utilities layer) override for monospace editors */
   .paperclip-mdxeditor [class*="_placeholder_"],
   .paperclip-mdxeditor-content {

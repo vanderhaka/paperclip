@@ -50,9 +50,15 @@ export function SidebarNavItem({
       }
     >
       <span className="relative shrink-0">
-        <Icon className="h-4 w-4" />
+        <Icon className="h-4 w-4" aria-hidden="true" />
         {alert && (
-          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 shadow-[0_0_0_2px_hsl(var(--background))]" />
+          <>
+            <span
+              className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 shadow-[0_0_0_2px_hsl(var(--background))]"
+              aria-hidden="true"
+            />
+            <span className="sr-only">Has unread alerts</span>
+          </>
         )}
       </span>
       <span className="flex-1 truncate">{label}</span>

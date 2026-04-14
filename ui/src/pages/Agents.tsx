@@ -171,24 +171,36 @@ export function Agents() {
           </div>
           {/* View toggle */}
           {!forceListView && (
-            <div className="flex items-center border border-border">
+            <div
+              className="flex items-center border border-border"
+              role="group"
+              aria-label="Agents view mode"
+            >
               <button
+                type="button"
                 className={cn(
                   "p-1.5 transition-colors",
                   effectiveView === "list" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50"
                 )}
                 onClick={() => setView("list")}
+                aria-label="List view"
+                aria-pressed={effectiveView === "list"}
+                title="List view"
               >
-                <List className="h-3.5 w-3.5" />
+                <List className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
               <button
+                type="button"
                 className={cn(
                   "p-1.5 transition-colors",
                   effectiveView === "org" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50"
                 )}
                 onClick={() => setView("org")}
+                aria-label="Org chart view"
+                aria-pressed={effectiveView === "org"}
+                title="Org chart view"
               >
-                <GitBranch className="h-3.5 w-3.5" />
+                <GitBranch className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
           )}
@@ -226,7 +238,7 @@ export function Agents() {
                 to={agentUrl(agent)}
                 className={agent.pausedAt && tab !== "paused" ? "opacity-50" : ""}
                 leading={
-                  <span className="relative flex h-2.5 w-2.5">
+                  <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
                     <span
                       className={`absolute inline-flex h-full w-full rounded-full ${agentStatusDot[agent.status] ?? agentStatusDotDefault}`}
                     />
@@ -324,9 +336,10 @@ function OrgTreeNode({
         to={agent ? agentUrl(agent) : `/agents/${node.id}`}
         className={cn("flex items-center gap-3 px-3 py-2 hover:bg-accent/30 transition-colors w-full text-left no-underline text-inherit", agent?.pausedAt && tab !== "paused" && "opacity-50")}
       >
-        <span className="relative flex h-2.5 w-2.5 shrink-0">
+        <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
           <span className={`absolute inline-flex h-full w-full rounded-full ${statusColor}`} />
         </span>
+        <span className="sr-only">Status: {node.status}</span>
         <div className="flex-1 min-w-0">
           <span className="text-sm font-medium">{node.name}</span>
           <span className="text-xs text-muted-foreground ml-2">
