@@ -89,7 +89,7 @@ export function Sidebar() {
             badgeTone={inboxBadge.failedRuns > 0 ? "danger" : "default"}
             alert={inboxBadge.failedRuns > 0}
           />
-          <SidebarNavItem to="/approvals/pending" label="Decisions" icon={ClipboardCheck} />
+          <SidebarNavItem to="/approvals/pending" label="Approvals" icon={ClipboardCheck} />
           <PluginSlotOutlet
             slotTypes={["sidebar"]}
             context={pluginContext}

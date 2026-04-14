@@ -99,7 +99,7 @@ function ActiveGoalCard({ companyId }: { companyId: string }) {
   );
 }
 
-function DecisionsCard({
+function ApprovalsCard({
   pendingApprovals,
   budgetApprovals,
 }: {
@@ -108,7 +108,7 @@ function DecisionsCard({
 }) {
   const total = pendingApprovals + budgetApprovals;
   return (
-    <HeaderCard to="/approvals/pending" icon={ClipboardCheck} label="Decisions">
+    <HeaderCard to="/approvals/pending" icon={ClipboardCheck} label="Approvals">
       <div className="flex items-baseline gap-2">
         <span className={cn(
           "text-2xl font-bold tabular-nums",
@@ -120,8 +120,8 @@ function DecisionsCard({
           {total === 0
             ? "Nothing waiting on you"
             : total === 1
-              ? "decision waiting on you"
-              : "decisions waiting on you"}
+              ? "approval waiting on you"
+              : "approvals waiting on you"}
         </span>
       </div>
       {budgetApprovals > 0 && (
@@ -194,7 +194,7 @@ export function TodayHeader({ companyId, summary }: TodayHeaderProps) {
   return (
     <div className="grid gap-3 md:grid-cols-3">
       <ActiveGoalCard companyId={companyId} />
-      <DecisionsCard
+      <ApprovalsCard
         pendingApprovals={summary.pendingApprovals}
         budgetApprovals={summary.budgets.pendingApprovals}
       />
