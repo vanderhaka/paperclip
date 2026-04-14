@@ -118,7 +118,7 @@ function CloudAccessGate() {
   return <Outlet />;
 }
 
-function boardRoutes() {
+function boardRoutes({ showDevSurfaces }: { showDevSurfaces: boolean }) {
   return (
     <>
       <Route index element={<Navigate to="dashboard" replace />} />
@@ -177,9 +177,13 @@ function boardRoutes() {
       <Route path="inbox/unread" element={<Inbox />} />
       <Route path="inbox/all" element={<Inbox />} />
       <Route path="inbox/new" element={<Navigate to="/inbox/mine" replace />} />
-      <Route path="design-guide" element={<DesignGuide />} />
-      <Route path="tests/ux/chat" element={<IssueChatUxLab />} />
-      <Route path="tests/ux/runs" element={<RunTranscriptUxLab />} />
+      {showDevSurfaces && (
+        <>
+          <Route path="design-guide" element={<DesignGuide />} />
+          <Route path="tests/ux/chat" element={<IssueChatUxLab />} />
+          <Route path="tests/ux/runs" element={<RunTranscriptUxLab />} />
+        </>
+      )}
       <Route path="instance/settings/adapters" element={<AdapterManager />} />
       <Route path=":pluginRoutePath" element={<PluginPage />} />
       <Route path="*" element={<NotFoundPage scope="board" />} />
@@ -308,6 +312,13 @@ function NoCompaniesStartPage() {
 }
 
 export function App() {
+  const healthQuery = useQuery({
+    queryKey: queryKeys.health,
+    queryFn: () => healthApi.get(),
+    retry: false,
+  });
+  const showDevSurfaces = healthQuery.data?.features?.showDevSurfaces === true;
+
   return (
     <>
       <Routes>
@@ -353,10 +364,14 @@ export function App() {
           <Route path="execution-workspaces/:workspaceId" element={<UnprefixedBoardRedirect />} />
           <Route path="execution-workspaces/:workspaceId/configuration" element={<UnprefixedBoardRedirect />} />
           <Route path="execution-workspaces/:workspaceId/issues" element={<UnprefixedBoardRedirect />} />
-          <Route path="tests/ux/chat" element={<UnprefixedBoardRedirect />} />
-          <Route path="tests/ux/runs" element={<UnprefixedBoardRedirect />} />
+          {showDevSurfaces && (
+            <>
+              <Route path="tests/ux/chat" element={<UnprefixedBoardRedirect />} />
+              <Route path="tests/ux/runs" element={<UnprefixedBoardRedirect />} />
+            </>
+          )}
           <Route path=":companyPrefix" element={<Layout />}>
-            {boardRoutes()}
+            {boardRoutes({ showDevSurfaces })}
           </Route>
           <Route path="*" element={<NotFoundPage scope="global" />} />
         </Route>
