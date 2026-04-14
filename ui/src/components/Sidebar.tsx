@@ -94,7 +94,7 @@ export function Sidebar() {
                 : "Inbox, no unread messages"
             }
           />
-          <SidebarNavItem to="/approvals/pending" label="Decisions" icon={ClipboardCheck} />
+          <SidebarNavItem to="/approvals/pending" label="Approvals" icon={ClipboardCheck} />
           <PluginSlotOutlet
             slotTypes={["sidebar"]}
             context={pluginContext}
