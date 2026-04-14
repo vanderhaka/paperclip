@@ -40,6 +40,8 @@
     "postpack": "rm -rf ui-dist",
     "clean": "rm -rf dist",
     "start": "node dist/index.js",
+    "seed:demo": "tsx ./scripts/seed-nesting-demo.ts",
+    "seed:demo:clean": "tsx ./scripts/seed-nesting-demo.ts --clean",
     "typecheck": "pnpm --filter @paperclipai/plugin-sdk build && tsc --noEmit"
   },
   "dependencies": {
