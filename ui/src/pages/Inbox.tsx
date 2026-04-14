@@ -1794,8 +1794,10 @@ export function Inbox() {
             className={cn("hidden h-8 w-8 shrink-0 sm:inline-flex", nestingEnabled && "bg-accent")}
             onClick={toggleNesting}
             title={nestingEnabled ? "Disable parent-child nesting" : "Enable parent-child nesting"}
+            aria-label={nestingEnabled ? "Disable parent-child nesting" : "Enable parent-child nesting"}
+            aria-pressed={nestingEnabled}
           >
-            <ListTree className="h-3.5 w-3.5" />
+            <ListTree className="h-3.5 w-3.5" aria-hidden="true" />
           </Button>
           <IssueFiltersPopover
             state={issueFilters}
@@ -1818,8 +1820,10 @@ export function Inbox() {
                 size="icon"
                 className={cn("h-8 w-8 shrink-0", groupBy !== "none" && "bg-accent")}
                 title="Group"
+                aria-label="Group issues"
+                aria-pressed={groupBy !== "none"}
               >
-                <Layers className="h-3.5 w-3.5" />
+                <Layers className="h-3.5 w-3.5" aria-hidden="true" />
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-40 p-2">

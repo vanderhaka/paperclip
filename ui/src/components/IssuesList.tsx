@@ -545,20 +545,30 @@ export function IssuesList({
 
         <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
           {/* View mode toggle */}
-          <div className="flex items-center border border-border rounded-md overflow-hidden mr-1">
+          <div
+            className="flex items-center border border-border rounded-md overflow-hidden mr-1"
+            role="group"
+            aria-label="View mode"
+          >
             <button
+              type="button"
               className={`p-1.5 transition-colors ${viewState.viewMode === "list" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               onClick={() => updateView({ viewMode: "list" })}
               title="List view"
+              aria-label="List view"
+              aria-pressed={viewState.viewMode === "list"}
             >
-              <List className="h-3.5 w-3.5" />
+              <List className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
             <button
+              type="button"
               className={`p-1.5 transition-colors ${viewState.viewMode === "board" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               onClick={() => updateView({ viewMode: "board" })}
               title="Board view"
+              aria-label="Board view"
+              aria-pressed={viewState.viewMode === "board"}
             >
-              <Columns3 className="h-3.5 w-3.5" />
+              <Columns3 className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>
 
@@ -588,8 +598,15 @@ export function IssuesList({
           {viewState.viewMode === "list" && (
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" title="Sort">
-                  <ArrowUpDown className="h-3.5 w-3.5" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  title="Sort"
+                  aria-label="Sort issues"
+                >
+                  <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-48 p-0">
@@ -631,8 +648,15 @@ export function IssuesList({
           {viewState.viewMode === "list" && (
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" title="Group">
-                  <Layers className="h-3.5 w-3.5" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  title="Group"
+                  aria-label="Group issues"
+                >
+                  <Layers className="h-3.5 w-3.5" aria-hidden="true" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-44 p-0">
@@ -704,12 +728,15 @@ export function IssuesList({
                   </span>
                 </CollapsibleTrigger>
                 <Button
+                  type="button"
                   variant="ghost"
                   size="icon-xs"
                   className="ml-auto text-muted-foreground"
                   onClick={() => openNewIssue(newIssueDefaults(group.key))}
+                  aria-label={`New issue in ${group.label}`}
+                  title={`New issue in ${group.label}`}
                 >
-                  <Plus className="h-3 w-3" />
+                  <Plus className="h-3 w-3" aria-hidden="true" />
                 </Button>
               </div>
             )}

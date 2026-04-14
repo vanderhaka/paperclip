@@ -65,8 +65,10 @@ export function Sidebar() {
           size="icon-sm"
           className="text-muted-foreground shrink-0"
           onClick={openSearch}
+          aria-label="Search"
+          title="Search"
         >
-          <Search className="h-4 w-4" />
+          <Search className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>
 

@@ -106,6 +106,15 @@ function SortableCompanyItem({
               e.preventDefault();
               onSelect();
             }}
+            aria-label={[
+              company.name,
+              isSelected ? "(selected)" : null,
+              hasLiveAgents ? "has live agents" : null,
+              hasUnreadInbox ? "has unread inbox items" : null,
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            aria-current={isSelected ? "page" : undefined}
             className="relative flex items-center justify-center group overflow-visible"
           >
             {/* Selection indicator pill */}
@@ -271,7 +280,8 @@ export function CompanyRail() {
     <div className="flex flex-col items-center w-[72px] shrink-0 h-full bg-background border-r border-border">
       {/* Paperclip icon - aligned with top sections (implied line, no visible border) */}
       <div className="flex items-center justify-center h-12 w-full shrink-0">
-        <Paperclip className="h-5 w-5 text-foreground" />
+        <Paperclip className="h-5 w-5 text-foreground" aria-hidden="true" />
+        <span className="sr-only">Paperclip</span>
       </div>
 
       {/* Company list */}
