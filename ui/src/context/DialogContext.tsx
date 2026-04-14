@@ -46,6 +46,9 @@ interface DialogContextValue {
   onboardingOptions: OnboardingOptions;
   openOnboarding: (options?: OnboardingOptions) => void;
   closeOnboarding: () => void;
+  keyboardShortcutsOpen: boolean;
+  openKeyboardShortcuts: () => void;
+  closeKeyboardShortcuts: () => void;
 }
 
 const DialogContext = createContext<DialogContextValue | null>(null);
@@ -59,6 +62,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
   const [newAgentOpen, setNewAgentOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingOptions, setOnboardingOptions] = useState<OnboardingOptions>({});
+  const [keyboardShortcutsOpen, setKeyboardShortcutsOpen] = useState(false);
 
   const openNewIssue = useCallback((defaults: NewIssueDefaults = {}) => {
     setNewIssueDefaults(defaults);
@@ -106,6 +110,14 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     setOnboardingOptions({});
   }, []);
 
+  const openKeyboardShortcuts = useCallback(() => {
+    setKeyboardShortcutsOpen(true);
+  }, []);
+
+  const closeKeyboardShortcuts = useCallback(() => {
+    setKeyboardShortcutsOpen(false);
+  }, []);
+
   return (
     <DialogContext.Provider
       value={{
@@ -127,6 +139,9 @@ export function DialogProvider({ children }: { children: ReactNode }) {
         onboardingOptions,
         openOnboarding,
         closeOnboarding,
+        keyboardShortcutsOpen,
+        openKeyboardShortcuts,
+        closeKeyboardShortcuts,
       }}
     >
       {children}

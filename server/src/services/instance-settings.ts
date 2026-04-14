@@ -20,7 +20,9 @@ function normalizeGeneralSettings(raw: unknown): InstanceGeneralSettings {
   if (parsed.success) {
     return {
       censorUsernameInLogs: parsed.data.censorUsernameInLogs ?? false,
-      keyboardShortcuts: parsed.data.keyboardShortcuts ?? false,
+      // Keyboard shortcuts are ON by default so new users discover the command palette and
+      // global shortcuts without having to flip a toggle in instance settings.
+      keyboardShortcuts: parsed.data.keyboardShortcuts ?? true,
       feedbackDataSharingPreference:
         parsed.data.feedbackDataSharingPreference ?? DEFAULT_FEEDBACK_DATA_SHARING_PREFERENCE,
       backupRetention: parsed.data.backupRetention ?? DEFAULT_BACKUP_RETENTION,
@@ -28,7 +30,7 @@ function normalizeGeneralSettings(raw: unknown): InstanceGeneralSettings {
   }
   return {
     censorUsernameInLogs: false,
-    keyboardShortcuts: false,
+    keyboardShortcuts: true,
     feedbackDataSharingPreference: DEFAULT_FEEDBACK_DATA_SHARING_PREFERENCE,
     backupRetention: DEFAULT_BACKUP_RETENTION,
   };

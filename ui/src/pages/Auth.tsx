@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useSearchParams } from "@/lib/router";
+import { Link, useNavigate, useSearchParams } from "@/lib/router";
 import { authApi } from "../api/auth";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
@@ -153,6 +153,16 @@ export function AuthPage() {
                   ? "Sign In"
                   : "Create Account"}
             </Button>
+            {mode === "sign_in" && (
+              <div className="text-center text-xs">
+                <Link
+                  to="/auth/forgot-password"
+                  className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            )}
           </form>
 
           <div className="mt-5 text-sm text-muted-foreground">

@@ -57,7 +57,13 @@ function readRememberedInstanceSettingsPath(): string {
 
 export function Layout() {
   const { sidebarOpen, setSidebarOpen, toggleSidebar, isMobile } = useSidebar();
-  const { openNewIssue, openOnboarding } = useDialog();
+  const {
+    openNewIssue,
+    openOnboarding,
+    keyboardShortcutsOpen,
+    openKeyboardShortcuts,
+    closeKeyboardShortcuts,
+  } = useDialog();
   const { togglePanelVisible } = usePanel();
   const {
     companies,
@@ -79,7 +85,6 @@ export function Layout() {
   const mainContentRef = useRef<HTMLElement | null>(null);
   const [mobileNavVisible, setMobileNavVisible] = useState(true);
   const [instanceSettingsTarget, setInstanceSettingsTarget] = useState<string>(() => readRememberedInstanceSettingsPath());
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const nextTheme = theme === "dark" ? "light" : "dark";
   const matchedCompany = useMemo(() => {
     if (!companyPrefix) return null;
@@ -171,7 +176,7 @@ export function Layout() {
     onSearch: openSearch,
     onToggleSidebar: toggleSidebar,
     onTogglePanel: togglePanel,
-    onShowShortcuts: () => setShortcutsOpen(true),
+    onShowShortcuts: openKeyboardShortcuts,
   });
 
   useEffect(() => {
@@ -487,7 +492,16 @@ export function Layout() {
       <NewProjectDialog />
       <NewGoalDialog />
       <NewAgentDialog />
-      <KeyboardShortcutsCheatsheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <KeyboardShortcutsCheatsheet
+        open={keyboardShortcutsOpen}
+        onOpenChange={(next) => {
+          if (next) {
+            openKeyboardShortcuts();
+          } else {
+            closeKeyboardShortcuts();
+          }
+        }}
+      />
       <ToastViewport />
       </div>
     </GeneralSettingsProvider>
