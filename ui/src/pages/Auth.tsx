@@ -4,8 +4,10 @@ import { Link, useNavigate, useSearchParams } from "@/lib/router";
 import { authApi } from "../api/auth";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
-import { AsciiArtAnimation } from "@/components/AsciiArtAnimation";
-import { Sparkles } from "lucide-react";
+import { Users, ListChecks, LineChart } from "lucide-react";
+
+const DOCS_URL = "https://paperclip.ing/docs";
+const REPO_URL = "https://github.com/paperclipai/paperclip";
 
 type AuthMode = "sign_in" | "sign_up";
 
@@ -69,18 +71,87 @@ export function AuthPage() {
   }
 
   return (
-    <div className="fixed inset-0 flex bg-background">
-      {/* Left half — form */}
-      <div className="w-full md:w-1/2 flex flex-col overflow-y-auto">
-        <div className="w-full max-w-md mx-auto my-auto px-8 py-12">
+    <div className="fixed inset-0 flex flex-col md:flex-row bg-background overflow-y-auto">
+      {/* Left column (desktop) / top (mobile) — welcome panel */}
+      <section
+        aria-labelledby="paperclip-heading"
+        className="w-full md:w-1/2 flex flex-col border-b border-border md:border-b-0 md:border-r"
+      >
+        <div className="w-full max-w-lg mx-auto my-auto px-8 py-12 md:py-16">
           <div className="flex items-center gap-2 mb-8">
-            <Sparkles className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Paperclip</span>
+            <img
+              src="/favicon.svg"
+              alt=""
+              aria-hidden="true"
+              className="h-5 w-5"
+            />
+            <span className="text-sm font-medium tracking-tight">Paperclip</span>
           </div>
 
-          <h1 className="text-xl font-semibold">
-            {mode === "sign_in" ? "Sign in to Paperclip" : "Create your Paperclip account"}
+          <h1
+            id="paperclip-heading"
+            className="text-3xl font-semibold tracking-tight"
+          >
+            Run your team of AI agents — together.
           </h1>
+          <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+            Paperclip is open-source orchestration for autonomous companies.
+            Assign goals, delegate work, and keep every agent accountable from
+            one dashboard.
+          </p>
+
+          <h2 className="sr-only">What Paperclip does</h2>
+          <ul className="mt-8 space-y-4">
+            <li className="flex items-start gap-3">
+              <Users className="mt-0.5 h-4 w-4 flex-none text-muted-foreground" aria-hidden="true" />
+              <span className="text-sm">Hire agents for any role</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <ListChecks className="mt-0.5 h-4 w-4 flex-none text-muted-foreground" aria-hidden="true" />
+              <span className="text-sm">Delegate tasks and review decisions</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <LineChart className="mt-0.5 h-4 w-4 flex-none text-muted-foreground" aria-hidden="true" />
+              <span className="text-sm">Track spend and performance in one place</span>
+            </li>
+          </ul>
+
+          <div className="mt-10 space-y-2 text-xs text-muted-foreground">
+            <p>
+              New here?{" "}
+              <a
+                href={DOCS_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-foreground underline underline-offset-2"
+              >
+                Read the docs
+              </a>
+            </p>
+            <p>
+              Paperclip is open source.{" "}
+              <a
+                href={REPO_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-foreground underline underline-offset-2"
+              >
+                Self-host guide
+              </a>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Right column (desktop) / bottom (mobile) — sign-in form */}
+      <section
+        aria-labelledby="auth-heading"
+        className="w-full md:w-1/2 flex flex-col"
+      >
+        <div className="w-full max-w-md mx-auto my-auto px-8 py-12 md:py-16">
+          <h2 id="auth-heading" className="text-xl font-semibold tracking-tight">
+            {mode === "sign_in" ? "Sign in to Paperclip" : "Create your Paperclip account"}
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {mode === "sign_in"
               ? "Use your email and password to access this instance."
@@ -179,12 +250,7 @@ export function AuthPage() {
             </button>
           </div>
         </div>
-      </div>
-
-      {/* Right half — ASCII art animation (hidden on mobile) */}
-      <div className="hidden md:block w-1/2 overflow-hidden">
-        <AsciiArtAnimation />
-      </div>
+      </section>
     </div>
   );
 }
