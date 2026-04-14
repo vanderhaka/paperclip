@@ -88,6 +88,11 @@ export function Sidebar() {
             badge={inboxBadge.inbox}
             badgeTone={inboxBadge.failedRuns > 0 ? "danger" : "default"}
             alert={inboxBadge.failedRuns > 0}
+            ariaLabel={
+              inboxBadge.inbox > 0
+                ? `Inbox, ${inboxBadge.inbox} unread`
+                : "Inbox, no unread messages"
+            }
           />
           <SidebarNavItem to="/approvals/pending" label="Decisions" icon={ClipboardCheck} />
           <PluginSlotOutlet

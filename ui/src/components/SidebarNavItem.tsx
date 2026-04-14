@@ -16,6 +16,7 @@ interface SidebarNavItemProps {
   textBadgeTone?: "default" | "amber";
   alert?: boolean;
   liveCount?: number;
+  ariaLabel?: string;
 }
 
 export function SidebarNavItem({
@@ -30,6 +31,7 @@ export function SidebarNavItem({
   textBadgeTone = "default",
   alert = false,
   liveCount,
+  ariaLabel,
 }: SidebarNavItemProps) {
   const { isMobile, setSidebarOpen } = useSidebar();
 
@@ -38,6 +40,7 @@ export function SidebarNavItem({
       to={to}
       state={SIDEBAR_SCROLL_RESET_STATE}
       end={end}
+      aria-label={ariaLabel}
       onClick={() => { if (isMobile) setSidebarOpen(false); }}
       className={({ isActive }) =>
         cn(
@@ -79,6 +82,7 @@ export function SidebarNavItem({
       )}
       {badge != null && badge > 0 && (
         <span
+          aria-hidden="true"
           className={cn(
             "ml-auto rounded-full px-1.5 py-0.5 text-xs leading-none",
             badgeTone === "danger"
