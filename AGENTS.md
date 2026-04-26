@@ -159,9 +159,21 @@ A change is done when all are true:
 4. Docs updated when behavior or commands change
 5. PR description follows the [PR template](.github/PULL_REQUEST_TEMPLATE.md) with all sections filled in (including Model Used)
 
-## 11. Fork-Specific: HenkDz/paperclip
+## 12. Fork Source of Truth: vanderhaka/paperclip
+
+This repository is James Van Der Haak's active Paperclip fork.
+
+- Treat `origin` (`git@github.com:vanderhaka/paperclip.git`) as the only GitHub source of truth.
+- Do not fetch, merge, rebase, or cherry-pick from `paperclipai/paperclip` unless James explicitly asks for an upstream-sync task.
+- Keep the local `upstream` remote absent. If it is recreated accidentally, remove it before changing branches, merging, or deploying.
+- Hosted VPS deploys should build from this fork's `origin/master`, not from the original Paperclip repository.
+- Preserve hosted runtime data at `/docker/paperclip-4zrs/data`; never delete or replace it during fork deploys.
+
+## 13. Historical Fork Notes: HenkDz/paperclip
 
 This is a fork of `paperclipai/paperclip` with QoL patches and an **external-only** Hermes adapter story on branch `feat/externalize-hermes-adapter` ([tree](https://github.com/HenkDz/paperclip/tree/feat/externalize-hermes-adapter)).
+
+These notes are historical/contextual. They do not override the active source-of-truth rule above.
 
 ### Branch Strategy
 
