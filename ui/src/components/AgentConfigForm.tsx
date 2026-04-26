@@ -149,6 +149,16 @@ const openCodeThinkingEffortOptions = [
   { id: "max", label: "Max" },
 ] as const;
 
+const piThinkingEffortOptions = [
+  { id: "", label: "Auto" },
+  { id: "off", label: "Off" },
+  { id: "minimal", label: "Minimal" },
+  { id: "low", label: "Low" },
+  { id: "medium", label: "Medium" },
+  { id: "high", label: "High" },
+  { id: "xhigh", label: "X-High" },
+] as const;
+
 const cursorModeOptions = [
   { id: "", label: "Auto" },
   { id: "plan", label: "Plan" },
@@ -369,7 +379,9 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         ? "mode"
         : adapterType === "opencode_local"
           ? "variant"
-          : "effort";
+          : adapterType === "pi_local"
+            ? "thinking"
+            : "effort";
   const thinkingEffortOptions =
     adapterType === "codex_local"
       ? codexThinkingEffortOptions
@@ -377,7 +389,9 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         ? cursorModeOptions
         : adapterType === "opencode_local"
           ? openCodeThinkingEffortOptions
-          : claudeThinkingEffortOptions;
+          : adapterType === "pi_local"
+            ? piThinkingEffortOptions
+            : claudeThinkingEffortOptions;
   const currentThinkingEffort = isCreate
     ? val!.thinkingEffort
     : adapterType === "codex_local"
@@ -390,8 +404,11 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         ? eff("adapterConfig", "mode", String(config.mode ?? ""))
       : adapterType === "opencode_local"
         ? eff("adapterConfig", "variant", String(config.variant ?? ""))
+      : adapterType === "pi_local"
+        ? eff("adapterConfig", "thinking", String(config.thinking ?? ""))
       : eff("adapterConfig", "effort", String(config.effort ?? ""));
   const showThinkingEffort = adapterType !== "gemini_local";
+  const modelRequiresProviderSelection = adapterType === "opencode_local" || adapterType === "pi_local";
   const codexSearchEnabled = adapterType === "codex_local"
     ? (isCreate ? Boolean(val!.search) : eff("adapterConfig", "search", Boolean(config.search)))
     : false;
@@ -696,9 +713,9 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                 }
                 open={modelOpen}
                 onOpenChange={setModelOpen}
-                allowDefault={adapterType !== "opencode_local"}
-                required={adapterType === "opencode_local"}
-                groupByProvider={adapterType === "opencode_local"}
+                allowDefault={!modelRequiresProviderSelection}
+                required={modelRequiresProviderSelection}
+                groupByProvider={modelRequiresProviderSelection}
                 creatable
                 detectedModel={detectedModel}
                 detectedModelCandidates={[]}

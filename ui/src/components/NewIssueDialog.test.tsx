@@ -246,6 +246,7 @@ describe("NewIssueDialog", () => {
   beforeEach(() => {
     container = document.createElement("div");
     document.body.appendChild(container);
+    window.localStorage.clear();
     dialogState.newIssueOpen = true;
     dialogState.newIssueDefaults = {};
     dialogState.closeNewIssue.mockReset();
@@ -366,6 +367,65 @@ describe("NewIssueDialog", () => {
         goalId: "goal-1",
         projectId: "project-1",
         executionWorkspaceId: "workspace-1",
+      }),
+    );
+
+    act(() => root.unmount());
+  });
+
+  it("submits Pi local assignee model and thinking overrides", async () => {
+    mockAgentsApi.list.mockResolvedValue([
+      {
+        id: "agent-pi",
+        name: "Implementation",
+        role: "engineer",
+        title: "Implementation",
+        status: "active",
+        adapterType: "pi_local",
+        icon: null,
+      },
+    ]);
+    window.localStorage.setItem("paperclip:issue-draft", JSON.stringify({
+      title: "Implement bounded slice",
+      description: "",
+      status: "todo",
+      priority: "",
+      assigneeValue: "agent:agent-pi",
+      reviewerValue: "",
+      approverValue: "",
+      projectId: "",
+      projectWorkspaceId: "",
+      assigneeModelOverride: "deepseek/deepseek-v4-flash",
+      assigneeThinkingEffort: "low",
+      assigneeChrome: false,
+    }));
+
+    const { root } = renderDialog(container);
+    await flush();
+    await flush();
+
+    expect(container.textContent).toContain("Pi options");
+
+    const submitButton = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Create Issue"));
+    expect(submitButton).not.toBeUndefined();
+
+    await act(async () => {
+      submitButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+
+    expect(mockIssuesApi.create).toHaveBeenCalledWith(
+      "company-1",
+      expect.objectContaining({
+        title: "Implement bounded slice",
+        assigneeAgentId: "agent-pi",
+        assigneeAdapterOverrides: {
+          adapterConfig: {
+            model: "deepseek/deepseek-v4-flash",
+            thinking: "low",
+          },
+        },
       }),
     );
 
