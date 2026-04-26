@@ -1891,6 +1891,7 @@ export function issueRoutes(
           const result = await heartbeat.cancelActiveForIssue(issue.id, {
             companyId: issue.companyId,
             reason: `Cancelled because issue ${issue.identifier ?? issue.id} moved to ${issue.status}`,
+            excludeRunIds: actor.runId ? [actor.runId] : undefined,
           });
           if (result.cancelledRuns.length === 0 && result.cancelledWakeups === 0) return;
 

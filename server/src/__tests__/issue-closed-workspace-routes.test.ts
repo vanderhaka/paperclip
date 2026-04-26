@@ -12,6 +12,7 @@ const mockIssueService = vi.hoisted(() => ({
   update: vi.fn(),
   checkout: vi.fn(),
   addComment: vi.fn(),
+  listWakeableBlockedDependents: vi.fn(async () => []),
 }));
 
 const mockExecutionWorkspaceService = vi.hoisted(() => ({
@@ -29,6 +30,7 @@ const mockHeartbeatService = vi.hoisted(() => ({
   getRun: vi.fn(async () => null),
   getActiveRunForAgent: vi.fn(async () => null),
   cancelRun: vi.fn(async () => null),
+  cancelActiveForIssue: vi.fn(async () => ({ cancelledRuns: [], cancelledWakeups: 0 })),
 }));
 
 const mockProjectService = vi.hoisted(() => ({
@@ -84,7 +86,7 @@ function registerServiceMocks() {
   }));
 }
 
-async function createApp() {
+async function createApp(actor?: Record<string, unknown>) {
   const [{ issueRoutes }, { errorHandler }] = await Promise.all([
     import("../routes/issues.js"),
     import("../middleware/index.js"),
@@ -98,6 +100,7 @@ async function createApp() {
       companyIds: ["company-1"],
       source: "local_implicit",
       isInstanceAdmin: false,
+      ...actor,
     };
     next();
   });
@@ -189,5 +192,44 @@ describe("closed isolated workspace issue routes", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.executionWorkspaceId).toBe(nextWorkspaceId);
+  });
+
+  it("does not cancel the heartbeat run that closes its own issue", async () => {
+    const runId = "55555555-5555-4555-8555-555555555555";
+    mockIssueService.getById.mockResolvedValue({
+      ...makeIssue(),
+      checkoutRunId: runId,
+      executionRunId: runId,
+      executionWorkspaceId: null,
+    });
+    mockIssueService.update.mockResolvedValue({
+      ...makeIssue(),
+      status: "done",
+      checkoutRunId: null,
+      executionRunId: null,
+      executionWorkspaceId: null,
+    });
+    mockIssueService.addComment.mockResolvedValue({
+      id: "66666666-6666-4666-8666-666666666666",
+      body: "done",
+    });
+
+    const res = await request(await createApp({
+      type: "agent",
+      agentId,
+      companyId: "company-1",
+      runId,
+      source: "agent_jwt",
+    }))
+      .patch(`/api/issues/${issueId}`)
+      .set("X-Paperclip-Run-Id", runId)
+      .send({ status: "done", comment: "done" });
+
+    expect(res.status).toBe(200);
+    expect(mockHeartbeatService.cancelActiveForIssue).toHaveBeenCalledWith(issueId, {
+      companyId: "company-1",
+      reason: "Cancelled because issue PAP-1085 moved to done",
+      excludeRunIds: [runId],
+    });
   });
 });
