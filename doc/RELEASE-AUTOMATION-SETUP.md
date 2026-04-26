@@ -7,6 +7,8 @@ This document covers the GitHub and npm setup required for the current Paperclip
 - npm trusted publishing via GitHub OIDC
 - protected release infrastructure in a public repository
 
+Npm publish jobs are guarded to run only from `paperclipai/paperclip`, because npm trusted publishing is configured against that repository identity. Forks can still run push verification and stable dry-runs, but should not publish `@paperclipai/*` packages unless they intentionally update the repository guard and npm trusted publisher settings.
+
 Repo-side files that depend on this setup:
 
 - `.github/workflows/release.yml`
