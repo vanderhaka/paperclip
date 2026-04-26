@@ -57,9 +57,21 @@ function signalRunningProcess(
   }
 }
 
+async function readLinuxProcessState(pid: number) {
+  if (process.platform !== "linux" || !Number.isInteger(pid) || pid <= 0) return null;
+  try {
+    const status = await fs.readFile(`/proc/${pid}/status`, "utf8");
+    const stateLine = status.split("\n").find((line) => line.startsWith("State:"));
+    return stateLine?.match(/^State:\s+(\S+)/)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export const runningProcesses = new Map<string, RunningProcess>();
 export const MAX_CAPTURE_BYTES = 4 * 1024 * 1024;
 export const MAX_EXCERPT_BYTES = 32 * 1024;
+const PROCESS_STATE_POLL_MS = 1_000;
 const SENSITIVE_ENV_KEY = /(key|token|secret|password|passwd|authorization|cookie)/i;
 const PAPERCLIP_SKILL_ROOT_RELATIVE_CANDIDATES = [
   "../../skills",
@@ -1107,8 +1119,33 @@ export async function runChildProcess(
         let stdout = "";
         let stderr = "";
         let logChain: Promise<void> = Promise.resolve();
+        let settled = false;
+        let timeout: ReturnType<typeof setTimeout> | null = null;
+        let zombiePoll: ReturnType<typeof setInterval> | null = null;
 
-        const timeout =
+        const cleanup = () => {
+          if (timeout) clearTimeout(timeout);
+          if (zombiePoll) clearInterval(zombiePoll);
+          runningProcesses.delete(runId);
+        };
+
+        const settleResult = (result: RunProcessResult) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          void logChain.finally(() => {
+            resolve(result);
+          });
+        };
+
+        const settleError = (err: Error) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(err);
+        };
+
+        timeout =
           opts.timeoutSec > 0
             ? setTimeout(() => {
                 timedOut = true;
@@ -1118,6 +1155,31 @@ export async function runChildProcess(
                 }, Math.max(1, opts.graceSec) * 1000);
               }, opts.timeoutSec * 1000)
             : null;
+
+        if (process.platform === "linux" && typeof child.pid === "number" && child.pid > 0) {
+          zombiePoll = setInterval(() => {
+            void readLinuxProcessState(child.pid ?? 0)
+              .then((state) => {
+                if (settled || state !== "Z") return;
+                const message = `Child process ${child.pid} became a zombie before Paperclip received a close event; treating the run as failed.`;
+                stderr = appendWithCap(stderr, `${message}\n`);
+                logChain = logChain
+                  .then(() => opts.onLog("stderr", `${message}\n`))
+                  .catch((err) => onLogError(err, runId, "failed to append zombie process log chunk"));
+                settleResult({
+                  exitCode: 1,
+                  signal: null,
+                  timedOut,
+                  stdout,
+                  stderr,
+                  pid: child.pid ?? null,
+                  startedAt,
+                });
+              })
+              .catch((err) => onLogError(err, runId, "failed to inspect child process state"));
+          }, PROCESS_STATE_POLL_MS);
+          zombiePoll.unref?.();
+        }
 
         child.stdout?.on("data", (chunk: unknown) => {
           const text = String(chunk);
@@ -1145,30 +1207,24 @@ export async function runChildProcess(
         }
 
         child.on("error", (err: Error) => {
-          if (timeout) clearTimeout(timeout);
-          runningProcesses.delete(runId);
           const errno = (err as NodeJS.ErrnoException).code;
           const pathValue = mergedEnv.PATH ?? mergedEnv.Path ?? "";
           const msg =
             errno === "ENOENT"
               ? `Failed to start command "${command}" in "${opts.cwd}". Verify adapter command, working directory, and PATH (${pathValue}).`
               : `Failed to start command "${command}" in "${opts.cwd}": ${err.message}`;
-          reject(new Error(msg));
+          settleError(new Error(msg));
         });
 
         child.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
-          if (timeout) clearTimeout(timeout);
-          runningProcesses.delete(runId);
-          void logChain.finally(() => {
-            resolve({
-              exitCode: code,
-              signal,
-              timedOut,
-              stdout,
-              stderr,
-              pid: child.pid ?? null,
-              startedAt,
-            });
+          settleResult({
+            exitCode: code,
+            signal,
+            timedOut,
+            stdout,
+            stderr,
+            pid: child.pid ?? null,
+            startedAt,
           });
         });
       })
