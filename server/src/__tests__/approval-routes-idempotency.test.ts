@@ -149,6 +149,69 @@ describe("approval routes idempotent retries", () => {
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
+  it("wakes a newly approved hire before waking the requester", async () => {
+    mockApprovalService.getById.mockResolvedValue({
+      id: "approval-1",
+      companyId: "company-1",
+      type: "hire_agent",
+      status: "pending",
+      payload: {},
+      requestedByAgentId: "ceo-agent",
+    });
+    mockApprovalService.approve.mockResolvedValue({
+      approval: {
+        id: "approval-1",
+        companyId: "company-1",
+        type: "hire_agent",
+        status: "approved",
+        payload: {},
+        requestedByAgentId: "ceo-agent",
+      },
+      applied: true,
+      hireApprovedAgentId: "cto-agent",
+    });
+
+    const res = await request(await createApp())
+      .post("/api/approvals/approval-1/approve")
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledTimes(2);
+    expect(mockHeartbeatService.wakeup).toHaveBeenNthCalledWith(
+      1,
+      "cto-agent",
+      expect.objectContaining({
+        reason: "hire_approved",
+        payload: expect.objectContaining({
+          approvalId: "approval-1",
+          issueId: "issue-1",
+          issueIds: ["issue-1"],
+          requestedByAgentId: "ceo-agent",
+        }),
+        contextSnapshot: expect.objectContaining({
+          approvalId: "approval-1",
+          forceFreshSession: true,
+          issueId: "issue-1",
+          issueIds: ["issue-1"],
+          taskKey: "approval:approval-1:hire:cto-agent",
+          wakeReason: "hire_approved",
+        }),
+      }),
+    );
+    expect(mockHeartbeatService.wakeup).toHaveBeenNthCalledWith(
+      2,
+      "ceo-agent",
+      expect.objectContaining({
+        reason: "approval_approved",
+        payload: expect.objectContaining({
+          approvalId: "approval-1",
+          issueId: "issue-1",
+          issueIds: ["issue-1"],
+        }),
+      }),
+    );
+  });
+
   it("rejects approval decisions for companies outside the caller scope", async () => {
     mockApprovalService.getById.mockResolvedValue({
       id: "approval-2",

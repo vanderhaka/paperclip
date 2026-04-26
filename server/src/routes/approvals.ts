@@ -134,7 +134,7 @@ export function approvalRoutes(db: Db) {
       res.status(404).json({ error: "Approval not found" });
       return;
     }
-    const { approval, applied } = await svc.approve(
+    const { approval, applied, hireApprovedAgentId } = await svc.approve(
       id,
       req.body.decidedByUserId ?? "board",
       req.body.decisionNote,
@@ -158,6 +158,73 @@ export function approvalRoutes(db: Db) {
           linkedIssueIds,
         },
       });
+
+      if (approval.type === "hire_agent" && hireApprovedAgentId) {
+        try {
+          const wakeRun = await heartbeat.wakeup(hireApprovedAgentId, {
+            source: "automation",
+            triggerDetail: "system",
+            reason: "hire_approved",
+            payload: {
+              approvalId: approval.id,
+              approvalStatus: approval.status,
+              issueId: primaryIssueId,
+              issueIds: linkedIssueIds,
+              requestedByAgentId: approval.requestedByAgentId,
+            },
+            requestedByActorType: "user",
+            requestedByActorId: req.actor.userId ?? "board",
+            contextSnapshot: {
+              source: "approval.approved",
+              approvalId: approval.id,
+              approvalStatus: approval.status,
+              issueId: primaryIssueId,
+              issueIds: linkedIssueIds,
+              taskId: primaryIssueId ?? `approval:${approval.id}`,
+              taskKey: `approval:${approval.id}:hire:${hireApprovedAgentId}`,
+              wakeReason: "hire_approved",
+              forceFreshSession: true,
+              requestedByAgentId: approval.requestedByAgentId,
+            },
+          });
+
+          await logActivity(db, {
+            companyId: approval.companyId,
+            actorType: "user",
+            actorId: req.actor.userId ?? "board",
+            action: "approval.hire_wakeup_queued",
+            entityType: "approval",
+            entityId: approval.id,
+            details: {
+              hireApprovedAgentId,
+              wakeRunId: wakeRun?.id ?? null,
+              linkedIssueIds,
+            },
+          });
+        } catch (err) {
+          logger.warn(
+            {
+              err,
+              approvalId: approval.id,
+              hireApprovedAgentId,
+            },
+            "failed to queue approved hire wakeup after approval",
+          );
+          await logActivity(db, {
+            companyId: approval.companyId,
+            actorType: "user",
+            actorId: req.actor.userId ?? "board",
+            action: "approval.hire_wakeup_failed",
+            entityType: "approval",
+            entityId: approval.id,
+            details: {
+              hireApprovedAgentId,
+              linkedIssueIds,
+              error: err instanceof Error ? err.message : String(err),
+            },
+          });
+        }
+      }
 
       if (approval.requestedByAgentId) {
         try {

@@ -543,6 +543,30 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(run?.error).toContain("is done");
   });
 
+  it("does not start a queued run when its issue is blocked", async () => {
+    const { issueId, runId } = await seedRunFixture({
+      agentStatus: "idle",
+      runStatus: "queued",
+      issueStatus: "blocked",
+    });
+    const heartbeat = heartbeatService(db);
+
+    await heartbeat.resumeQueuedRuns();
+
+    const run = await heartbeat.getRun(runId);
+    expect(run?.status).toBe("cancelled");
+    expect(run?.startedAt).toBeNull();
+    expect(run?.error).toContain("is blocked");
+
+    const issue = await db
+      .select()
+      .from(issues)
+      .where(eq(issues.id, issueId))
+      .then((rows) => rows[0] ?? null);
+    expect(issue?.status).toBe("blocked");
+    expect(issue?.executionRunId).toBeNull();
+  });
+
   it("tracks the first heartbeat with the agent role instead of adapter type", async () => {
     const { runId } = await seedRunFixture({
       agentStatus: "running",

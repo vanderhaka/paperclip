@@ -15,7 +15,11 @@ export function approvalService(db: Db) {
   const canResolveStatuses = new Set(["pending", "revision_requested"]);
   const resolvableStatuses = Array.from(canResolveStatuses);
   type ApprovalRecord = typeof approvals.$inferSelect;
-  type ResolutionResult = { approval: ApprovalRecord; applied: boolean };
+  type ResolutionResult = {
+    approval: ApprovalRecord;
+    applied: boolean;
+    hireApprovedAgentId?: string | null;
+  };
 
   function redactApprovalComment<T extends { body: string }>(comment: T, censorUsernameInLogs: boolean): T {
     return {
@@ -165,7 +169,7 @@ export function approvalService(db: Db) {
         }
       }
 
-      return { approval: updated, applied };
+      return { approval: updated, applied, hireApprovedAgentId };
     },
 
     reject: async (id: string, decidedByUserId: string, decisionNote?: string | null) => {

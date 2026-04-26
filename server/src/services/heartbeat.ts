@@ -2291,9 +2291,16 @@ export function heartbeatService(db: Db) {
         .where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId)))
         .then((rows) => rows[0] ?? null);
       if (isClosedIssueRunStatus(issue?.status)) {
-        await cancelQueuedClosedIssueRun(
+        await cancelQueuedIssueRun(
           run,
           `Cancelled because issue ${issue?.identifier ?? issueId} is ${issue?.status}`,
+        );
+        return null;
+      }
+      if (issue?.status === "blocked") {
+        await cancelQueuedIssueRun(
+          run,
+          `Cancelled because issue ${issue.identifier ?? issueId} is blocked`,
         );
         return null;
       }
@@ -4350,7 +4357,7 @@ export function heartbeatService(db: Db) {
     return wakeupIds.length;
   }
 
-  async function cancelQueuedClosedIssueRun(run: typeof heartbeatRuns.$inferSelect, reason: string) {
+  async function cancelQueuedIssueRun(run: typeof heartbeatRuns.$inferSelect, reason: string) {
     const cancelled = await setRunStatus(run.id, "cancelled", {
       finishedAt: new Date(),
       error: reason,
@@ -4411,7 +4418,7 @@ export function heartbeatService(db: Db) {
     const runningRuns = activeRuns.filter((run) => run.status === "running" && !excludeRunIds.has(run.id));
 
     for (const run of queuedRuns) {
-      const cancelled = await cancelQueuedClosedIssueRun(run, reason);
+      const cancelled = await cancelQueuedIssueRun(run, reason);
       if (cancelled?.status === "cancelled") cancelledRunIds.push(cancelled.id);
     }
 
