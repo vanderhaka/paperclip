@@ -169,6 +169,25 @@ This repository is James Van Der Haak's active Paperclip fork.
 - Hosted VPS deploys should build from this fork's `origin/master`, not from the original Paperclip repository.
 - Preserve hosted runtime data at `/docker/paperclip-4zrs/data`; never delete or replace it during fork deploys.
 
+### Push Workflow
+
+Push this fork directly to `origin/master`.
+
+```sh
+git status --short --branch
+git remote -v
+git add <intended files>
+git commit -m "<clear change summary>"
+git push origin master
+```
+
+Before pushing:
+
+- Confirm `origin` is `git@github.com:vanderhaka/paperclip.git`.
+- Confirm there is no `upstream` remote; remove it with `git remote remove upstream` if it appears.
+- Stage only intended files. Leave local reports, probes, generated artifacts, and unrelated user work unstaged unless James explicitly asks to include them.
+- Do not push to or pull from `paperclipai/paperclip`.
+
 ## 13. Historical Fork Notes: HenkDz/paperclip
 
 This is a fork of `paperclipai/paperclip` with QoL patches and an **external-only** Hermes adapter story on branch `feat/externalize-hermes-adapter` ([tree](https://github.com/HenkDz/paperclip/tree/feat/externalize-hermes-adapter)).
