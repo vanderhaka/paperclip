@@ -1,0 +1,58 @@
+name: Deploy VPS
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paperclip-vps-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.repository == 'vanderhaka/paperclip'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          PAPERCLIP_VPS_HOST: ${{ secrets.PAPERCLIP_VPS_HOST }}
+          PAPERCLIP_VPS_PORT: ${{ secrets.PAPERCLIP_VPS_PORT }}
+          PAPERCLIP_VPS_SSH_KEY: ${{ secrets.PAPERCLIP_VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PAPERCLIP_VPS_HOST:-}" ]; then
+            echo "::error::PAPERCLIP_VPS_HOST secret is required"
+            exit 1
+          fi
+
+          if [ -z "${PAPERCLIP_VPS_SSH_KEY:-}" ]; then
+            echo "::error::PAPERCLIP_VPS_SSH_KEY secret is required"
+            exit 1
+          fi
+
+          port="${PAPERCLIP_VPS_PORT:-22}"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$PAPERCLIP_VPS_SSH_KEY" > ~/.ssh/paperclip_vps_key
+          chmod 600 ~/.ssh/paperclip_vps_key
+          ssh-keyscan -p "$port" -H "$PAPERCLIP_VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy to VPS
+        env:
+          PAPERCLIP_VPS_HOST: ${{ secrets.PAPERCLIP_VPS_HOST }}
+          PAPERCLIP_VPS_USER: ${{ secrets.PAPERCLIP_VPS_USER }}
+          PAPERCLIP_VPS_PORT: ${{ secrets.PAPERCLIP_VPS_PORT }}
+          PAPERCLIP_VPS_COMPOSE_DIR: ${{ secrets.PAPERCLIP_VPS_COMPOSE_DIR }}
+          PAPERCLIP_VPS_SSH_KEY_PATH: /home/runner/.ssh/paperclip_vps_key
+        run: ./scripts/deploy-vps.sh

@@ -121,6 +121,40 @@ Granular overrides remain available if needed (`PAPERCLIP_AUTH_PUBLIC_BASE_URL`,
 
 Set `PAPERCLIP_ALLOWED_HOSTNAMES` explicitly only when you need additional hostnames beyond the public URL host (for example Tailscale/LAN aliases or multiple private hostnames).
 
+## Hosted VPS Auto Deploy
+
+The fork includes `.github/workflows/deploy-vps.yml`, which deploys pushes to `master` and `main` by running `scripts/deploy-vps.sh` over SSH.
+
+The deploy script:
+
+- builds the pushed git tree into a Docker image on the VPS
+- verifies the Compose directory and persistent `data/` mount exist
+- backs up `docker-compose.yml` before changing the service image
+- runs `docker compose up -d paperclip`
+- checks `/api/health`
+- restores the previous Compose file if the new container does not become healthy
+
+Required GitHub Actions secrets:
+
+| Secret | Purpose |
+|--------|---------|
+| `PAPERCLIP_VPS_HOST` | VPS hostname or IP address |
+| `PAPERCLIP_VPS_SSH_KEY` | Private SSH key allowed to connect to the VPS |
+
+Optional secrets:
+
+| Secret | Default | Purpose |
+|--------|---------|---------|
+| `PAPERCLIP_VPS_USER` | `root` | SSH user |
+| `PAPERCLIP_VPS_PORT` | `22` | SSH port |
+| `PAPERCLIP_VPS_COMPOSE_DIR` | `/docker/paperclip-4zrs` | Directory containing `docker-compose.yml` and the persistent `data/` mount |
+
+Manual deploys use the same path:
+
+```sh
+PAPERCLIP_VPS_HOST=example.com ./scripts/deploy-vps.sh
+```
+
 ## Claude + Codex Local Adapters in Docker
 
 The image pre-installs:
