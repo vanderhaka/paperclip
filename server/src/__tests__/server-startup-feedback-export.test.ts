@@ -119,6 +119,7 @@ vi.mock("../services/index.js", () => ({
   feedbackService: feedbackServiceFactoryMock,
   heartbeatService: vi.fn(() => ({
     reapOrphanedRuns: vi.fn(async () => undefined),
+    cancelActiveRunsForClosedIssues: vi.fn(async () => ({ issues: 0, cancelledRuns: 0, cancelledWakeups: 0, runIds: [] })),
     resumeQueuedRuns: vi.fn(async () => undefined),
     tickTimers: vi.fn(async () => ({ enqueued: 0 })),
   })),

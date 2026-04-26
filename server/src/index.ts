@@ -580,9 +580,11 @@ export async function startServer(): Promise<StartedServer> {
     const routines = routineService(db as any);
   
     // Reap orphaned running runs at startup while in-memory execution state is empty,
-    // then resume any persisted queued runs that were waiting on the previous process.
+    // cancel work attached to already-closed issues, then resume any persisted queued
+    // runs that were waiting on the previous process.
     void heartbeat
       .reapOrphanedRuns()
+      .then(() => heartbeat.cancelActiveRunsForClosedIssues())
       .then(() => heartbeat.resumeQueuedRuns())
       .catch((err) => {
         logger.error({ err }, "startup heartbeat recovery failed");
@@ -611,9 +613,10 @@ export async function startServer(): Promise<StartedServer> {
         });
   
       // Periodically reap orphaned runs (5-min staleness threshold) and make sure
-      // persisted queued work is still being driven forward.
+      // persisted queued work is still valid and being driven forward.
       void heartbeat
         .reapOrphanedRuns({ staleThresholdMs: 5 * 60 * 1000 })
+        .then(() => heartbeat.cancelActiveRunsForClosedIssues())
         .then(() => heartbeat.resumeQueuedRuns())
         .catch((err) => {
           logger.error({ err }, "periodic heartbeat recovery failed");

@@ -17,6 +17,11 @@ Each heartbeat:
 4. Stores results (status, token usage, errors, logs)
 5. Updates the UI live
 
+When an issue is closed (`done` or `cancelled`), Paperclip cancels any queued or
+running heartbeat tied to that issue and cancels pending/deferred wakeups for the
+same issue. Review handoffs (`in_review`) can still wake reviewers; closed work
+cannot keep burning runtime in the background.
+
 ## 2. When an agent wakes up
 
 An agent can be woken up in four ways:

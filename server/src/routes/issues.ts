@@ -100,6 +100,10 @@ function executionPrincipalsEqual(
   return left.type === "agent" ? left.agentId === right.agentId : left.userId === right.userId;
 }
 
+function isClosedIssueRuntimeStatus(status: string | null | undefined) {
+  return status === "done" || status === "cancelled";
+}
+
 function buildExecutionStageWakeContext(input: {
   state: ParsedExecutionState;
   wakeRole: ExecutionStageWakeContext["wakeRole"];
@@ -1675,6 +1679,9 @@ export function issueRoutes(
       existing.status === "backlog" &&
       issue.status !== "backlog" &&
       req.body.status !== undefined;
+    const issueIsClosedForRuntime = isClosedIssueRuntimeStatus(issue.status);
+    const issueJustClosedForRuntime =
+      !isClosedIssueRuntimeStatus(existing.status) && isClosedIssueRuntimeStatus(issue.status);
     const previousExecutionState = parseIssueExecutionState(existing.executionState);
     const nextExecutionState = parseIssueExecutionState(issue.executionState);
     const executionStageWakeup = buildExecutionStageWakeup({
@@ -1698,9 +1705,9 @@ export function issueRoutes(
         wakeups.set(`${agentId}:${wakeIssueId}`, { agentId, wakeup });
       };
 
-      if (executionStageWakeup) {
+      if (executionStageWakeup && !issueIsClosedForRuntime) {
         addWakeup(executionStageWakeup.agentId, executionStageWakeup.wakeup);
-      } else if (assigneeChanged && issue.assigneeAgentId && issue.status !== "backlog") {
+      } else if (assigneeChanged && issue.assigneeAgentId && issue.status !== "backlog" && !issueIsClosedForRuntime) {
         addWakeup(issue.assigneeAgentId, {
           source: "assignment",
           triggerDetail: "system",
@@ -1728,7 +1735,7 @@ export function issueRoutes(
         });
       }
 
-      if (!assigneeChanged && statusChangedFromBacklog && issue.assigneeAgentId) {
+      if (!assigneeChanged && statusChangedFromBacklog && issue.assigneeAgentId && !issueIsClosedForRuntime) {
         addWakeup(issue.assigneeAgentId, {
           source: "automation",
           triggerDetail: "system",
@@ -1748,11 +1755,11 @@ export function issueRoutes(
         });
       }
 
-      if (commentBody && comment) {
+      if (commentBody && comment && !issueIsClosedForRuntime) {
         const assigneeId = issue.assigneeAgentId;
         const actorIsAgent = actor.actorType === "agent";
         const selfComment = actorIsAgent && actor.actorId === assigneeId;
-        const skipAssigneeCommentWake = selfComment || isClosed;
+        const skipAssigneeCommentWake = selfComment || isClosed || issueIsClosedForRuntime;
 
         if (assigneeId && !assigneeChanged && !skipAssigneeCommentWake) {
           addWakeup(assigneeId, {
@@ -1877,6 +1884,37 @@ export function issueRoutes(
     })();
 
     res.json({ ...issueResponse, comment });
+
+    if (issueJustClosedForRuntime && typeof heartbeat.cancelActiveForIssue === "function") {
+      void (async () => {
+        try {
+          const result = await heartbeat.cancelActiveForIssue(issue.id, {
+            companyId: issue.companyId,
+            reason: `Cancelled because issue ${issue.identifier ?? issue.id} moved to ${issue.status}`,
+          });
+          if (result.cancelledRuns.length === 0 && result.cancelledWakeups === 0) return;
+
+          await logActivity(db, {
+            companyId: issue.companyId,
+            actorType: actor.actorType,
+            actorId: actor.actorId,
+            agentId: actor.agentId,
+            runId: actor.runId,
+            action: "issue.runtime_shutdown",
+            entityType: "issue",
+            entityId: issue.id,
+            details: {
+              identifier: issue.identifier,
+              status: issue.status,
+              cancelledRunIds: result.cancelledRuns,
+              cancelledWakeups: result.cancelledWakeups,
+            },
+          });
+        } catch (err) {
+          logger.warn({ err, issueId: issue.id }, "failed to shut down heartbeat work for closed issue");
+        }
+      })();
+    }
   });
 
   router.delete("/issues/:id", async (req, res) => {

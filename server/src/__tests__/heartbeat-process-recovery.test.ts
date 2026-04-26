@@ -163,6 +163,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     adapterType?: string;
     agentStatus?: "paused" | "idle" | "running";
     runStatus?: "running" | "queued" | "failed";
+    issueStatus?: "backlog" | "todo" | "in_progress" | "in_review" | "done" | "blocked" | "cancelled";
     processPid?: number | null;
     processGroupId?: number | null;
     processLossRetryCount?: number;
@@ -224,7 +225,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       processLossRetryCount: input?.processLossRetryCount ?? 0,
       errorCode: input?.runErrorCode ?? null,
       error: input?.runError ?? null,
-      startedAt: now,
+      startedAt: input?.runStatus === "queued" ? null : now,
       updatedAt: new Date("2026-03-19T00:00:00.000Z"),
     });
 
@@ -233,7 +234,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
         id: issueId,
         companyId,
         title: "Recover local adapter after lost process",
-        status: "in_progress",
+        status: input?.issueStatus ?? "in_progress",
         priority: "medium",
         assigneeAgentId: agentId,
         checkoutRunId: runId,
@@ -387,6 +388,159 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     const run = await heartbeat.getRun(runId);
     expect(run?.errorCode).toBeNull();
     expect(run?.error).toBeNull();
+  });
+
+  it("cancels active runs and pending wakeups for a closed issue", async () => {
+    const { companyId, agentId, runId, issueId } = await seedRunFixture({
+      agentStatus: "running",
+      issueStatus: "done",
+    });
+    const queuedWakeupId = randomUUID();
+    const queuedRunId = randomUUID();
+    const deferredWakeupId = randomUUID();
+    const now = new Date("2026-03-19T00:05:00.000Z");
+
+    await db.insert(agentWakeupRequests).values({
+      id: queuedWakeupId,
+      companyId,
+      agentId,
+      source: "assignment",
+      triggerDetail: "system",
+      reason: "issue_assigned",
+      payload: { issueId },
+      status: "queued",
+      runId: queuedRunId,
+      requestedAt: now,
+    });
+    await db.insert(heartbeatRuns).values({
+      id: queuedRunId,
+      companyId,
+      agentId,
+      invocationSource: "assignment",
+      triggerDetail: "system",
+      status: "queued",
+      wakeupRequestId: queuedWakeupId,
+      contextSnapshot: { issueId },
+      updatedAt: now,
+    });
+    await db.insert(agentWakeupRequests).values({
+      id: deferredWakeupId,
+      companyId,
+      agentId,
+      source: "assignment",
+      triggerDetail: "system",
+      reason: "issue_execution_deferred",
+      payload: { issueId },
+      status: "deferred_issue_execution",
+      requestedAt: now,
+    });
+
+    const heartbeat = heartbeatService(db);
+    const result = await heartbeat.cancelActiveForIssue(issueId, {
+      companyId,
+      reason: "Issue closed",
+    });
+
+    expect(new Set(result.cancelledRuns)).toEqual(new Set([runId, queuedRunId]));
+    expect(result.cancelledWakeups).toBe(1);
+
+    const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, agentId));
+    expect(runs).toHaveLength(2);
+    expect(runs.every((run) => run.status === "cancelled")).toBe(true);
+    expect(runs.every((run) => run.error === "Issue closed")).toBe(true);
+
+    const wakeups = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.agentId, agentId));
+    const deferredWakeup = wakeups.find((wakeup) => wakeup.id === deferredWakeupId);
+    expect(deferredWakeup?.status).toBe("cancelled");
+    expect(wakeups.filter((wakeup) => wakeup.status === "queued" || wakeup.status === "deferred_issue_execution")).toEqual([]);
+  });
+
+  it("sweeps persisted queued work attached to closed issues before resume", async () => {
+    const { companyId, agentId, runId, issueId } = await seedRunFixture({
+      agentStatus: "idle",
+      runStatus: "queued",
+      issueStatus: "done",
+    });
+    const deferredWakeupId = randomUUID();
+
+    await db.insert(agentWakeupRequests).values({
+      id: deferredWakeupId,
+      companyId,
+      agentId,
+      source: "assignment",
+      triggerDetail: "system",
+      reason: "issue_execution_deferred",
+      payload: { issueId },
+      status: "deferred_issue_execution",
+    });
+
+    const heartbeat = heartbeatService(db);
+    const result = await heartbeat.cancelActiveRunsForClosedIssues();
+
+    expect(result.issues).toBe(1);
+    expect(result.cancelledRuns).toBe(1);
+    expect(result.cancelledWakeups).toBe(1);
+    expect(result.runIds).toEqual([runId]);
+
+    const run = await heartbeat.getRun(runId);
+    expect(run?.status).toBe("cancelled");
+
+    const deferredWakeup = await db
+      .select()
+      .from(agentWakeupRequests)
+      .where(eq(agentWakeupRequests.id, deferredWakeupId))
+      .then((rows) => rows[0] ?? null);
+    expect(deferredWakeup?.status).toBe("cancelled");
+  });
+
+  it("does not promote deferred wakeups when a closed issue run releases", async () => {
+    const { companyId, agentId, runId, issueId } = await seedRunFixture({
+      agentStatus: "running",
+      issueStatus: "done",
+    });
+    const deferredWakeupId = randomUUID();
+
+    await db.insert(agentWakeupRequests).values({
+      id: deferredWakeupId,
+      companyId,
+      agentId,
+      source: "assignment",
+      triggerDetail: "system",
+      reason: "issue_execution_deferred",
+      payload: { issueId },
+      status: "deferred_issue_execution",
+    });
+
+    const heartbeat = heartbeatService(db);
+    await heartbeat.cancelRun(runId);
+
+    const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, agentId));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.status).toBe("cancelled");
+
+    const deferredWakeup = await db
+      .select()
+      .from(agentWakeupRequests)
+      .where(eq(agentWakeupRequests.id, deferredWakeupId))
+      .then((rows) => rows[0] ?? null);
+    expect(deferredWakeup?.status).toBe("cancelled");
+    expect(deferredWakeup?.runId).toBeNull();
+  });
+
+  it("does not start a queued run when its issue is already closed", async () => {
+    const { runId } = await seedRunFixture({
+      agentStatus: "idle",
+      runStatus: "queued",
+      issueStatus: "done",
+    });
+    const heartbeat = heartbeatService(db);
+
+    await heartbeat.resumeQueuedRuns();
+
+    const run = await heartbeat.getRun(runId);
+    expect(run?.status).toBe("cancelled");
+    expect(run?.startedAt).toBeNull();
+    expect(run?.error).toContain("is done");
   });
 
   it("tracks the first heartbeat with the agent role instead of adapter type", async () => {

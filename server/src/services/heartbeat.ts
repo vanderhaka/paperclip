@@ -75,6 +75,7 @@ const DEFERRED_WAKE_CONTEXT_KEY = "_paperclipWakeContext";
 const WAKE_COMMENT_IDS_KEY = "wakeCommentIds";
 const PAPERCLIP_WAKE_PAYLOAD_KEY = "paperclipWake";
 const DETACHED_PROCESS_ERROR_CODE = "process_detached";
+const CLOSED_ISSUE_RUN_STATUSES = ["done", "cancelled"];
 const startLocksByAgent = new Map<string, Promise<void>>();
 const REPO_ONLY_CWD_SENTINEL = "/__paperclip_repo_only__";
 const MANAGED_WORKSPACE_GIT_CLONE_TIMEOUT_MS = 10 * 60 * 1000;
@@ -90,6 +91,10 @@ const SESSIONED_LOCAL_ADAPTERS = new Set([
   "opencode_local",
   "pi_local",
 ]);
+
+function isClosedIssueRunStatus(status: string | null | undefined) {
+  return status === "done" || status === "cancelled";
+}
 
 type RuntimeConfigSecretResolver = Pick<
   ReturnType<typeof secretService>,
@@ -2274,8 +2279,28 @@ export function heartbeatService(db: Db) {
     }
 
     const context = parseObject(run.contextSnapshot);
+    const issueId = readNonEmptyString(context.issueId);
+    if (issueId) {
+      const issue = await db
+        .select({
+          id: issues.id,
+          identifier: issues.identifier,
+          status: issues.status,
+        })
+        .from(issues)
+        .where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId)))
+        .then((rows) => rows[0] ?? null);
+      if (isClosedIssueRunStatus(issue?.status)) {
+        await cancelQueuedClosedIssueRun(
+          run,
+          `Cancelled because issue ${issue?.identifier ?? issueId} is ${issue?.status}`,
+        );
+        return null;
+      }
+    }
+
     const budgetBlock = await budgets.getInvocationBlock(run.companyId, run.agentId, {
-      issueId: readNonEmptyString(context.issueId),
+      issueId,
       projectId: readNonEmptyString(context.projectId),
     });
     if (budgetBlock) {
@@ -3588,6 +3613,8 @@ export function heartbeatService(db: Db) {
         .select({
           id: issues.id,
           companyId: issues.companyId,
+          identifier: issues.identifier,
+          status: issues.status,
         })
         .from(issues)
         .where(and(eq(issues.companyId, run.companyId), eq(issues.executionRunId, run.id)))
@@ -3604,6 +3631,27 @@ export function heartbeatService(db: Db) {
           updatedAt: new Date(),
         })
         .where(eq(issues.id, issue.id));
+
+      if (isClosedIssueRunStatus(issue.status)) {
+        const now = new Date();
+        await tx
+          .update(agentWakeupRequests)
+          .set({
+            status: "cancelled",
+            finishedAt: now,
+            error: `Cancelled because issue ${issue.identifier ?? issue.id} is ${issue.status}`,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(agentWakeupRequests.companyId, issue.companyId),
+              eq(agentWakeupRequests.status, "deferred_issue_execution"),
+              sql`${agentWakeupRequests.runId} is null`,
+              sql`${agentWakeupRequests.payload} ->> 'issueId' = ${issue.id}`,
+            ),
+          );
+        return null;
+      }
 
       while (true) {
         const deferred = await tx
@@ -4272,6 +4320,218 @@ export function heartbeatService(db: Db) {
     return rows.map((row) => row.id);
   }
 
+  async function cancelPendingWakeupsForIssue(issue: { id: string; companyId: string }, reason: string) {
+    const now = new Date();
+    const wakeupIds = await db
+      .select({ id: agentWakeupRequests.id })
+      .from(agentWakeupRequests)
+      .where(
+        and(
+          eq(agentWakeupRequests.companyId, issue.companyId),
+          inArray(agentWakeupRequests.status, ["queued", "deferred_issue_execution"]),
+          sql`${agentWakeupRequests.runId} is null`,
+          sql`${agentWakeupRequests.payload} ->> 'issueId' = ${issue.id}`,
+        ),
+      )
+      .then((rows) => rows.map((row) => row.id));
+
+    if (wakeupIds.length === 0) return 0;
+
+    await db
+      .update(agentWakeupRequests)
+      .set({
+        status: "cancelled",
+        finishedAt: now,
+        error: reason,
+        updatedAt: now,
+      })
+      .where(inArray(agentWakeupRequests.id, wakeupIds));
+
+    return wakeupIds.length;
+  }
+
+  async function cancelQueuedClosedIssueRun(run: typeof heartbeatRuns.$inferSelect, reason: string) {
+    const cancelled = await setRunStatus(run.id, "cancelled", {
+      finishedAt: new Date(),
+      error: reason,
+      errorCode: "cancelled",
+    });
+
+    await setWakeupStatus(run.wakeupRequestId, "cancelled", {
+      finishedAt: new Date(),
+      error: reason,
+    });
+
+    await db
+      .update(issues)
+      .set({
+        executionRunId: null,
+        executionAgentNameKey: null,
+        executionLockedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(issues.companyId, run.companyId), eq(issues.executionRunId, run.id)));
+
+    if (cancelled) {
+      await appendRunEvent(cancelled, await nextRunEventSeq(cancelled.id), {
+        eventType: "lifecycle",
+        stream: "system",
+        level: "warn",
+        message: "run cancelled",
+      });
+    }
+
+    return cancelled;
+  }
+
+  async function cancelIssueRunsAndWakeups(
+    issue: { id: string; companyId: string; identifier: string | null; status: string },
+    opts?: { reason?: string; excludeRunIds?: string[] },
+  ) {
+    const reason =
+      opts?.reason ??
+      `Cancelled because issue ${issue.identifier ?? issue.id} is ${issue.status}`;
+    const excludeRunIds = new Set(opts?.excludeRunIds ?? []);
+
+    const cancelledWakeups = await cancelPendingWakeupsForIssue(issue, reason);
+    const activeRuns = await db
+      .select()
+      .from(heartbeatRuns)
+      .where(
+        and(
+          eq(heartbeatRuns.companyId, issue.companyId),
+          inArray(heartbeatRuns.status, ["queued", "running"]),
+          sql`${heartbeatRuns.contextSnapshot} ->> 'issueId' = ${issue.id}`,
+        ),
+      )
+      .orderBy(asc(heartbeatRuns.createdAt));
+
+    const cancelledRunIds: string[] = [];
+    const queuedRuns = activeRuns.filter((run) => run.status === "queued" && !excludeRunIds.has(run.id));
+    const runningRuns = activeRuns.filter((run) => run.status === "running" && !excludeRunIds.has(run.id));
+
+    for (const run of queuedRuns) {
+      const cancelled = await cancelQueuedClosedIssueRun(run, reason);
+      if (cancelled?.status === "cancelled") cancelledRunIds.push(cancelled.id);
+    }
+
+    for (const run of runningRuns) {
+      const cancelled = await cancelRunInternal(run.id, reason);
+      if (cancelled?.status === "cancelled") cancelledRunIds.push(cancelled.id);
+    }
+
+    return { cancelledRuns: cancelledRunIds, cancelledWakeups };
+  }
+
+  async function cancelActiveForIssueInternal(
+    issueId: string,
+    opts?: { companyId?: string; reason?: string; excludeRunIds?: string[] },
+  ) {
+    const issue = await db
+      .select({
+        id: issues.id,
+        companyId: issues.companyId,
+        identifier: issues.identifier,
+        status: issues.status,
+      })
+      .from(issues)
+      .where(
+        opts?.companyId
+          ? and(eq(issues.id, issueId), eq(issues.companyId, opts.companyId))
+          : eq(issues.id, issueId),
+      )
+      .then((rows) => rows[0] ?? null);
+
+    if (!issue) throw notFound("Issue not found");
+    return cancelIssueRunsAndWakeups(issue, opts);
+  }
+
+  async function cancelActiveRunsForClosedIssues() {
+    const runIssueId = sql<string | null>`${heartbeatRuns.contextSnapshot} ->> 'issueId'`;
+    const wakeIssueId = sql<string | null>`${agentWakeupRequests.payload} ->> 'issueId'`;
+    const issueCandidates = new Map<
+      string,
+      { id: string; companyId: string; identifier: string | null; status: string }
+    >();
+
+    const activeRunIssues = await db
+      .selectDistinctOn([issues.id], {
+        id: issues.id,
+        companyId: issues.companyId,
+        identifier: issues.identifier,
+        status: issues.status,
+      })
+      .from(heartbeatRuns)
+      .innerJoin(
+        issues,
+        and(
+          eq(issues.companyId, heartbeatRuns.companyId),
+          sql`${issues.id}::text = ${runIssueId}`,
+        ),
+      )
+      .where(
+        and(
+          inArray(heartbeatRuns.status, ["queued", "running"]),
+          inArray(issues.status, CLOSED_ISSUE_RUN_STATUSES),
+        ),
+      );
+
+    const pendingWakeupIssues = await db
+      .selectDistinctOn([issues.id], {
+        id: issues.id,
+        companyId: issues.companyId,
+        identifier: issues.identifier,
+        status: issues.status,
+      })
+      .from(agentWakeupRequests)
+      .innerJoin(
+        issues,
+        and(
+          eq(issues.companyId, agentWakeupRequests.companyId),
+          sql`${issues.id}::text = ${wakeIssueId}`,
+        ),
+      )
+      .where(
+        and(
+          inArray(agentWakeupRequests.status, ["queued", "deferred_issue_execution"]),
+          sql`${agentWakeupRequests.runId} is null`,
+          inArray(issues.status, CLOSED_ISSUE_RUN_STATUSES),
+        ),
+      );
+
+    for (const issue of [...activeRunIssues, ...pendingWakeupIssues]) {
+      issueCandidates.set(issue.id, issue);
+    }
+
+    const cancelledRunIds: string[] = [];
+    let cancelledWakeups = 0;
+
+    for (const issue of issueCandidates.values()) {
+      const result = await cancelIssueRunsAndWakeups(issue);
+      cancelledRunIds.push(...result.cancelledRuns);
+      cancelledWakeups += result.cancelledWakeups;
+    }
+
+    if (cancelledRunIds.length > 0 || cancelledWakeups > 0) {
+      logger.warn(
+        {
+          issueCount: issueCandidates.size,
+          cancelledRunCount: cancelledRunIds.length,
+          cancelledWakeups,
+          runIds: cancelledRunIds,
+        },
+        "cancelled heartbeat work attached to closed issues",
+      );
+    }
+
+    return {
+      issues: issueCandidates.size,
+      cancelledRuns: cancelledRunIds.length,
+      cancelledWakeups,
+      runIds: cancelledRunIds,
+    };
+  }
+
   async function cancelPendingWakeupsForBudgetScope(scope: BudgetEnforcementScope) {
     const now = new Date();
     let wakeupIds: string[] = [];
@@ -4609,6 +4869,13 @@ export function heartbeatService(db: Db) {
     cancelRun: (runId: string) => cancelRunInternal(runId),
 
     cancelActiveForAgent: (agentId: string) => cancelActiveForAgentInternal(agentId),
+
+    cancelActiveForIssue: (
+      issueId: string,
+      opts?: { companyId?: string; reason?: string; excludeRunIds?: string[] },
+    ) => cancelActiveForIssueInternal(issueId, opts),
+
+    cancelActiveRunsForClosedIssues,
 
     cancelBudgetScopeWork,
 
