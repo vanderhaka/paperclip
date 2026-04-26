@@ -122,8 +122,8 @@ function SortableCompanyItem({
               className={cn(
                 "absolute left-[-14px] w-1 rounded-r-full bg-foreground transition-[height] duration-150",
                 isSelected
-                  ? "h-5"
-                  : "h-0 group-hover:h-2"
+                  ? "h-6"
+                  : "h-0 group-hover:h-3"
               )}
             />
             <div
@@ -135,8 +135,8 @@ function SortableCompanyItem({
                 brandColor={company.brandColor}
                 className={cn(
                   isSelected
-                    ? "rounded-[14px]"
-                    : "rounded-[22px] group-hover:rounded-[14px]",
+                    ? "rounded-xl shadow-sm"
+                    : "rounded-lg group-hover:rounded-xl",
                   isDragging && "shadow-lg",
                 )}
               />
@@ -277,10 +277,10 @@ export function CompanyRail() {
   );
 
   return (
-    <div className="flex flex-col items-center w-[72px] shrink-0 h-full bg-background border-r border-border">
-      {/* Paperclip icon - aligned with top sections (implied line, no visible border) */}
+    <div className="flex h-full w-[72px] shrink-0 flex-col items-center border-r border-sidebar-border bg-sidebar">
+      {/* Paperclip icon aligned with top sections. */}
       <div className="flex items-center justify-center h-12 w-full shrink-0">
-        <Paperclip className="h-5 w-5 text-foreground" aria-hidden="true" />
+        <Paperclip className="h-5 w-5 text-sidebar-foreground" aria-hidden="true" />
         <span className="sr-only">Paperclip</span>
       </div>
 
@@ -315,7 +315,7 @@ export function CompanyRail() {
       </div>
 
       {/* Separator before add button */}
-      <div className="w-8 h-px bg-border mx-auto shrink-0" />
+      <div className="mx-auto h-px w-8 shrink-0 bg-sidebar-border" />
 
       {/* Add company button */}
       <div className="flex items-center justify-center py-2 shrink-0">
@@ -323,7 +323,7 @@ export function CompanyRail() {
           <TooltipTrigger asChild>
             <button
               onClick={() => openOnboarding()}
-              className="flex items-center justify-center w-11 h-11 rounded-[22px] hover:rounded-[14px] border-2 border-dashed border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-[border-color,color,border-radius] duration-150"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-dashed border-sidebar-border text-muted-foreground transition-colors hover:border-sidebar-foreground/30 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               aria-label="Add company"
             >
               <Plus className="h-5 w-5" />

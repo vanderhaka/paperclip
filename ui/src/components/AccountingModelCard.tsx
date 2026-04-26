@@ -7,29 +7,28 @@ const SURFACES = [
     description: "Per-request AI usage and billed runs.",
     icon: Database,
     points: ["tokens + billed dollars", "provider, vendor, model", "subscription and overage aware"],
-    tone: "from-sky-500/12 via-sky-500/6 to-transparent",
+    tone: "border-sky-500/20 bg-sky-500/[0.06]",
   },
   {
     title: "Billing log",
     description: "Account-level charges that aren't tied to a single AI request.",
     icon: ReceiptText,
     points: ["top-ups, refunds, fees", "Bedrock provisioned or training charges", "credit expiries and adjustments"],
-    tone: "from-amber-500/14 via-amber-500/6 to-transparent",
+    tone: "border-amber-500/25 bg-amber-500/[0.07]",
   },
   {
     title: "Live quotas",
     description: "Provider or vendor windows that can stop traffic in real time.",
     icon: Gauge,
     points: ["provider quota windows", "vendor credit systems", "errors surfaced directly"],
-    tone: "from-emerald-500/14 via-emerald-500/6 to-transparent",
+    tone: "border-emerald-500/25 bg-emerald-500/[0.07]",
   },
 ] as const;
 
 export function AccountingModelCard() {
   return (
-    <Card className="relative overflow-hidden border-border/70">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(244,114,182,0.08),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(56,189,248,0.1),transparent_32%)]" />
-      <CardHeader className="relative px-5 pt-5 pb-2">
+    <Card className="overflow-hidden border-border/70">
+      <CardHeader className="px-5 pt-5 pb-2">
         <CardTitle className="text-sm font-semibold uppercase tracking-[0.22em] text-muted-foreground">
           Accounting model
         </CardTitle>
@@ -38,13 +37,13 @@ export function AccountingModelCard() {
           That keeps provider reporting honest when the vendor is OpenRouter, Cloudflare, Bedrock, or another intermediary.
         </CardDescription>
       </CardHeader>
-      <CardContent className="relative grid gap-3 px-5 pb-5 md:grid-cols-3">
+      <CardContent className="grid gap-3 px-5 pb-5 md:grid-cols-3">
         {SURFACES.map((surface) => {
           const Icon = surface.icon;
           return (
             <div
               key={surface.title}
-              className={`rounded-2xl border border-border/70 bg-gradient-to-br ${surface.tone} p-4 shadow-sm`}
+              className={`rounded-lg border ${surface.tone} p-4 shadow-xs`}
             >
               <div className="mb-3 flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-background/80">

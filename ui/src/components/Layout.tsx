@@ -314,10 +314,10 @@ export function Layout() {
   return (
     <GeneralSettingsProvider value={{ keyboardShortcutsEnabled }}>
       <div
-      className={cn(
-        "bg-background text-foreground pt-[env(safe-area-inset-top)]",
-        isMobile ? "min-h-dvh" : "flex h-dvh flex-col overflow-hidden",
-      )}
+        className={cn(
+          "bg-background text-foreground pt-[env(safe-area-inset-top)]",
+          isMobile ? "min-h-dvh" : "flex h-dvh flex-col overflow-hidden",
+        )}
       >
       <a
         href="#main-content"
@@ -348,7 +348,7 @@ export function Layout() {
               <CompanyRail />
               {isInstanceSettingsRoute ? <InstanceSidebar /> : <Sidebar />}
             </div>
-            <div className="border-t border-r border-border px-3 py-2 bg-background">
+            <div className="border-t border-sidebar-border bg-sidebar/95 px-3 py-2">
               <div className="flex items-center gap-1">
                 <a
                   href="https://docs.paperclip.ing/"
@@ -407,7 +407,7 @@ export function Layout() {
                 {isInstanceSettingsRoute ? <InstanceSidebar /> : <Sidebar />}
               </div>
             </div>
-            <div className="border-t border-r border-border px-3 py-2">
+            <div className="border-t border-sidebar-border bg-sidebar/95 px-3 py-2">
               <div className="flex items-center gap-1">
                 <a
                   href="https://docs.paperclip.ing/"
@@ -469,7 +469,7 @@ export function Layout() {
               ref={mainContentRef}
               tabIndex={-1}
               className={cn(
-                "flex-1 p-4 outline-none md:p-6",
+                "flex-1 bg-background/70 p-4 outline-none md:p-6",
                 isMobile ? "overflow-visible pb-[calc(5rem+env(safe-area-inset-bottom))]" : "overflow-auto",
               )}
             >

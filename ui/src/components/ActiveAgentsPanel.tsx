@@ -51,11 +51,11 @@ export function ActiveAgentsPanel({ companyId }: ActiveAgentsPanelProps) {
 
   return (
     <div>
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        Agents
+      <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
+        Running now
       </h3>
       {runs.length === 0 ? (
-        <div className="rounded-xl border border-border p-4">
+        <div className="rounded-lg border border-dashed border-border/80 bg-card/70 p-4">
           <p className="text-sm text-muted-foreground">No recent agent runs.</p>
         </div>
       ) : (
@@ -94,10 +94,10 @@ function AgentRunCard({
 }) {
   return (
     <div className={cn(
-      "flex h-[320px] flex-col overflow-hidden rounded-xl border shadow-sm",
+      "flex h-[320px] flex-col overflow-hidden rounded-lg border shadow-xs",
       isActive
-        ? "border-cyan-500/25 bg-cyan-500/[0.04] shadow-[0_16px_40px_rgba(6,182,212,0.08)]"
-        : "border-border bg-background/70",
+        ? "border-cyan-500/30 bg-cyan-500/[0.06]"
+        : "border-border/70 bg-card/85",
     )}>
       <div className="border-b border-border/60 px-3 py-3">
         <div className="flex items-start justify-between gap-2">

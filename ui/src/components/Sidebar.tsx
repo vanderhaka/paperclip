@@ -48,8 +48,8 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-60 h-full min-h-0 border-r border-border bg-background flex flex-col">
-      {/* Top bar: Company name (bold) + Search — aligned with top sections (no visible border) */}
+    <aside className="flex h-full min-h-0 w-60 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+      {/* Top bar: company name and search aligned with the global header. */}
       <div className="flex items-center gap-1 px-3 h-12 shrink-0">
         {selectedCompany?.brandColor && (
           <div
@@ -57,13 +57,13 @@ export function Sidebar() {
             style={{ backgroundColor: selectedCompany.brandColor }}
           />
         )}
-        <span className="flex-1 text-sm font-bold text-foreground truncate pl-1">
+        <span className="flex-1 truncate pl-1 text-sm font-semibold text-sidebar-foreground">
           {selectedCompany?.name ?? "Select company"}
         </span>
         <Button
           variant="ghost"
           size="icon-sm"
-          className="text-muted-foreground shrink-0"
+          className="shrink-0 text-muted-foreground"
           onClick={openSearch}
           aria-label="Search"
           title="Search"
@@ -72,12 +72,11 @@ export function Sidebar() {
         </Button>
       </div>
 
-      <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide flex flex-col gap-4 px-3 py-2">
+      <nav className="scrollbar-auto-hide flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 py-3">
         <div className="flex flex-col gap-0.5">
-          {/* New Issue button aligned with nav items */}
           <button
             onClick={() => openNewIssue()}
-            className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+            className="mb-1 flex items-center gap-2.5 rounded-md border border-sidebar-border bg-card/80 px-3 py-2 text-[13px] font-medium text-foreground shadow-xs transition-colors hover:bg-accent/60 hover:text-accent-foreground"
           >
             <SquarePen className="h-4 w-4 shrink-0" />
             <span className="truncate">New Task</span>

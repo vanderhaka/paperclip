@@ -65,10 +65,10 @@ function HeaderCard({
     <Link
       to={to}
       className={cn(
-        "group flex flex-col gap-2 rounded-md border bg-card p-3 text-inherit no-underline transition-colors",
+        "group flex flex-col gap-2 rounded-lg border bg-card/90 p-3 text-inherit no-underline shadow-xs transition-colors",
         isWarning
-          ? "border-amber-500/40 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/40"
-          : "border-border hover:border-foreground/20 hover:bg-accent/30",
+          ? "border-amber-500/35 bg-amber-500/[0.08] hover:bg-amber-500/[0.12]"
+          : "border-border/70 hover:border-primary/25 hover:bg-accent/45",
       )}
     >
       <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">

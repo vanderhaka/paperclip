@@ -1402,7 +1402,7 @@ export function RunTranscriptView({
 
   if (entries.length === 0) {
     return (
-      <div className={cn("rounded-2xl border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground", className)}>
+      <div className={cn("rounded-lg border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground", className)}>
         {emptyMessage}
       </div>
     );

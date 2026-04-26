@@ -526,7 +526,7 @@ export function ExecutionWorkspaceDetail() {
         {activeTab === "configuration" ? (
           <div className="grid gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.95fr)]">
             <div className="min-w-0 space-y-4 sm:space-y-6">
-              <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <div className="rounded-lg border border-border bg-card p-4 sm:p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                   <div className="space-y-1">
                     <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -721,7 +721,7 @@ export function ExecutionWorkspaceDetail() {
             </div>
 
             <div className="min-w-0 space-y-4 sm:space-y-6">
-              <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <div className="rounded-lg border border-border bg-card p-4 sm:p-5">
                 <div className="space-y-1">
                   <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Linked objects</div>
                   <h2 className="text-lg font-semibold">Workspace context</h2>
@@ -766,7 +766,7 @@ export function ExecutionWorkspaceDetail() {
                 </DetailRow>
               </div>
 
-              <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <div className="rounded-lg border border-border bg-card p-4 sm:p-5">
                 <div className="space-y-1">
                   <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Paths and refs</div>
                   <h2 className="text-lg font-semibold">Concrete location</h2>
@@ -810,7 +810,7 @@ export function ExecutionWorkspaceDetail() {
                 </DetailRow>
               </div>
 
-              <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <div className="rounded-lg border border-border bg-card p-4 sm:p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="space-y-1">
                     <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Runtime services</div>
@@ -889,7 +889,7 @@ export function ExecutionWorkspaceDetail() {
                 )}
               </div>
 
-              <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <div className="rounded-lg border border-border bg-card p-4 sm:p-5">
                 <div className="space-y-1">
                   <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Recent operations</div>
                   <h2 className="text-lg font-semibold">Runtime and cleanup logs</h2>

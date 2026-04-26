@@ -56,10 +56,10 @@ function GlobalHeaderActions() {
         onClick={openCommandPalette}
         aria-label="Open command palette"
         title="Open command palette"
-        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-card/80 px-2 py-1 text-xs text-muted-foreground shadow-xs transition-colors hover:bg-accent/60 hover:text-accent-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       >
         <span>Search</span>
-        <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-[10px] leading-none text-muted-foreground">
+        <kbd className="rounded-sm border border-border bg-background px-1 py-0.5 font-mono text-[10px] leading-none text-muted-foreground">
           {modKey}K
         </kbd>
       </button>
@@ -155,7 +155,7 @@ export function BreadcrumbBar() {
 
   if (breadcrumbs.length === 0) {
     return (
-      <div className="border-b border-border px-4 md:px-6 h-12 shrink-0 flex items-center justify-end gap-2">
+      <div className="flex h-12 shrink-0 items-center justify-end gap-2 border-b border-border/80 bg-background/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/70 md:px-6">
         <GlobalHeaderActions />
         {globalToolbarSlots}
       </div>
@@ -177,10 +177,10 @@ export function BreadcrumbBar() {
   // Single breadcrumb = page title (uppercase)
   if (breadcrumbs.length === 1) {
     return (
-      <div className="border-b border-border px-4 md:px-6 h-12 shrink-0 flex items-center gap-2">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/80 bg-background/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/70 md:px-6">
         {menuButton}
         <div className="min-w-0 overflow-hidden flex-1">
-          <h1 className="text-sm font-semibold uppercase tracking-wider truncate">
+          <h1 className="truncate text-sm font-semibold">
             {breadcrumbs[0].label}
           </h1>
         </div>
@@ -192,7 +192,7 @@ export function BreadcrumbBar() {
 
   // Multiple breadcrumbs = breadcrumb trail
   return (
-    <div className="border-b border-border px-4 md:px-6 h-12 shrink-0 flex items-center gap-2">
+    <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/80 bg-background/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/70 md:px-6">
       {menuButton}
       <div className="min-w-0 overflow-hidden flex-1">
         <Breadcrumb className="min-w-0 overflow-hidden">

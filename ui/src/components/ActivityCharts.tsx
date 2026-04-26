@@ -46,7 +46,7 @@ function ChartLegend({ items }: { items: { color: string; label: string }[] }) {
 
 export function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div className="border border-border rounded-lg p-4 space-y-3">
+    <div className="space-y-3 rounded-lg border border-border/70 bg-card/90 p-4 shadow-xs">
       <div>
         <h3 className="text-xs font-medium text-muted-foreground">{title}</h3>
         {subtitle && <span className="text-[10px] text-muted-foreground/60">{subtitle}</span>}

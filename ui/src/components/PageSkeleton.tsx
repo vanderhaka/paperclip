@@ -15,24 +15,42 @@ interface PageSkeletonProps {
 export function PageSkeleton({ variant = "list" }: PageSkeletonProps) {
   if (variant === "dashboard") {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-32 w-full border border-border" />
-
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full" />
-          ))}
+      <div className="mx-auto w-full max-w-[1480px] space-y-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-8 w-72" />
+            <Skeleton className="h-4 w-96 max-w-full" />
+          </div>
+          <div className="hidden gap-2 sm:flex">
+            <Skeleton className="h-9 w-28" />
+            <Skeleton className="h-9 w-28" />
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-44 w-full" />
-          ))}
+        <div className="grid gap-3 md:grid-cols-3">
+          <Skeleton className="h-28 w-full rounded-lg border border-border" />
+          <Skeleton className="h-28 w-full rounded-lg border border-border" />
+          <Skeleton className="h-28 w-full rounded-lg border border-border" />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <Skeleton className="h-72 w-full" />
-          <Skeleton className="h-72 w-full" />
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-5">
+            <div className="grid gap-5 lg:grid-cols-2">
+              <Skeleton className="h-72 w-full rounded-lg border border-border" />
+              <Skeleton className="h-72 w-full rounded-lg border border-border" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-28 w-full rounded-lg border border-border" />
+              ))}
+            </div>
+            <Skeleton className="h-72 w-full rounded-lg border border-border" />
+          </div>
+          <div className="space-y-5">
+            <Skeleton className="h-52 w-full rounded-lg border border-border" />
+            <Skeleton className="h-96 w-full rounded-lg border border-border" />
+          </div>
         </div>
       </div>
     );
