@@ -108,7 +108,7 @@ function createAgent(): Agent {
     urlKey: "routine-agent",
     pauseReason: null,
     pausedAt: null,
-    permissions: { canCreateAgents: false },
+    permissions: { canCreateAgents: false, canAutoApproveOwnHireRequests: false },
   };
 }
 

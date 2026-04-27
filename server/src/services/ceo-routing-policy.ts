@@ -37,6 +37,7 @@ export async function getCeoRoutingAgent(db: Db, companyId: string) {
       name: agents.name,
       role: agents.role,
       status: agents.status,
+      permissions: agents.permissions,
     })
     .from(agents)
     .where(
@@ -72,5 +73,7 @@ export async function shouldAutoApproveCeoHireRequest(
 ) {
   if (!actorAgentId) return false;
   const ceo = await getCeoRoutingAgent(db, companyId);
-  return ceo?.id === actorAgentId;
+  if (ceo?.id !== actorAgentId) return false;
+  const permissions = ceo.permissions && typeof ceo.permissions === "object" ? ceo.permissions : {};
+  return (permissions as Record<string, unknown>).canAutoApproveOwnHireRequests !== false;
 }

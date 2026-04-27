@@ -247,7 +247,7 @@ describe("company skill mutation permissions", () => {
     mockAgentService.getById.mockResolvedValue({
       id: "agent-1",
       companyId: "company-1",
-      permissions: { canCreateAgents: true },
+      permissions: { canCreateAgents: true, canAutoApproveOwnHireRequests: false },
     });
 
     const res = await request(await createApp({

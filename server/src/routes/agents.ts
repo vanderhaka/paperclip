@@ -1662,6 +1662,7 @@ export function agentRoutes(db: Db) {
       entityId: agent.id,
       details: {
         canCreateAgents: agent.permissions?.canCreateAgents ?? false,
+        canAutoApproveOwnHireRequests: agent.permissions?.canAutoApproveOwnHireRequests ?? false,
         canAssignTasks: effectiveCanAssignTasks,
       },
     });

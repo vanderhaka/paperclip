@@ -140,7 +140,7 @@ describe("agent routes adapter validation", () => {
       spentMonthlyCents: 0,
       pauseReason: null,
       pausedAt: null,
-      permissions: { canCreateAgents: false },
+      permissions: { canCreateAgents: false, canAutoApproveOwnHireRequests: false },
       lastHeartbeatAt: null,
       metadata: null,
       createdAt: new Date(),

@@ -172,6 +172,7 @@ describe("company portability", () => {
         budgetMonthlyCents: 0,
         permissions: {
           canCreateAgents: false,
+          canAutoApproveOwnHireRequests: false,
         },
         metadata: null,
       },
@@ -196,6 +197,7 @@ describe("company portability", () => {
         budgetMonthlyCents: 0,
         permissions: {
           canCreateAgents: false,
+          canAutoApproveOwnHireRequests: false,
         },
         metadata: null,
       },

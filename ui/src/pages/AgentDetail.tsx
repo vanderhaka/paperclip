@@ -1589,6 +1589,7 @@ function ConfigurationTab({
   }, [onSavingChange, isConfigSaving]);
 
   const canCreateAgents = Boolean(agent.permissions?.canCreateAgents);
+  const canAutoApproveOwnHireRequests = Boolean(agent.permissions?.canAutoApproveOwnHireRequests);
   const canAssignTasks = Boolean(agent.access?.canAssignTasks);
   const taskAssignSource = agent.access?.taskAssignSource ?? "none";
   const taskAssignLocked = agent.role === "ceo" || canCreateAgents;
@@ -1633,10 +1634,30 @@ function ConfigurationTab({
               onCheckedChange={() =>
                 updatePermissions.mutate({
                   canCreateAgents: !canCreateAgents,
+                  canAutoApproveOwnHireRequests,
                   canAssignTasks: !canCreateAgents ? true : canAssignTasks,
                 })
               }
               disabled={updatePermissions.isPending}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <div className="space-y-1">
+              <div>Can auto-approve own hires</div>
+              <p className="text-xs text-muted-foreground">
+                Lets this agent approve employee hire requests it creates without waiting for board review.
+              </p>
+            </div>
+            <ToggleSwitch
+              checked={canAutoApproveOwnHireRequests}
+              onCheckedChange={() =>
+                updatePermissions.mutate({
+                  canCreateAgents,
+                  canAutoApproveOwnHireRequests: !canAutoApproveOwnHireRequests,
+                  canAssignTasks,
+                })
+              }
+              disabled={updatePermissions.isPending || !canCreateAgents}
             />
           </div>
           <div className="flex items-center justify-between gap-4 text-sm">
@@ -1651,6 +1672,7 @@ function ConfigurationTab({
               onCheckedChange={() =>
                 updatePermissions.mutate({
                   canCreateAgents,
+                  canAutoApproveOwnHireRequests,
                   canAssignTasks: !canAssignTasks,
                 })
               }

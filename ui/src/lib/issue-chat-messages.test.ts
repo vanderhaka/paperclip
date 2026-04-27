@@ -32,7 +32,7 @@ function createAgent(id: string, name: string): Agent {
     pauseReason: null,
     pausedAt: null,
     urlKey: "codexcoder",
-    permissions: { canCreateAgents: false },
+    permissions: { canCreateAgents: false, canAutoApproveOwnHireRequests: false },
   } as Agent;
 }
 
