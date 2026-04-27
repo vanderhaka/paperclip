@@ -3,6 +3,7 @@ import type { Db } from "@paperclipai/db";
 import {
   activityLog,
   agents,
+  approvals,
   assets,
   companies,
   companyMemberships,
@@ -11,6 +12,7 @@ import {
   heartbeatRuns,
   executionWorkspaces,
   issueAttachments,
+  issueApprovals,
   issueInboxArchives,
   issueLabels,
   issueRelations,
@@ -36,6 +38,10 @@ import { redactCurrentUserText } from "../log-redaction.js";
 import { resolveIssueGoalId, resolveNextIssueGoalId } from "./issue-goal-fallback.js";
 import { getDefaultCompanyGoal } from "./goals.js";
 import { resolveDefaultCeoTaskAssigneeId } from "./ceo-routing-policy.js";
+import {
+  buildBoardApprovalPayloadFromComment,
+  hasBoardApprovalIntent,
+} from "./board-approval-intent.js";
 
 const ALL_ISSUE_STATUSES = ["backlog", "todo", "in_progress", "in_review", "blocked", "done", "cancelled"];
 const MAX_ISSUE_COMMENT_PAGE_LIMIT = 500;
@@ -2277,7 +2283,12 @@ export function issueService(db: Db) {
       actor: { agentId?: string; userId?: string; runId?: string | null },
     ) => {
       const issue = await db
-        .select({ companyId: issues.companyId })
+        .select({
+          id: issues.id,
+          companyId: issues.companyId,
+          identifier: issues.identifier,
+          title: issues.title,
+        })
         .from(issues)
         .where(eq(issues.id, issueId))
         .then((rows) => rows[0] ?? null);
@@ -2305,6 +2316,66 @@ export function issueService(db: Db) {
         .update(issues)
         .set({ updatedAt: new Date() })
         .where(eq(issues.id, issueId));
+
+      if (actor.agentId && hasBoardApprovalIntent(redactedBody)) {
+        const existingActionableBoardApproval = await db
+          .select({ id: approvals.id })
+          .from(issueApprovals)
+          .innerJoin(approvals, eq(issueApprovals.approvalId, approvals.id))
+          .where(
+            and(
+              eq(issueApprovals.companyId, issue.companyId),
+              eq(issueApprovals.issueId, issue.id),
+              eq(approvals.type, "request_board_approval"),
+              inArray(approvals.status, ["pending", "revision_requested"]),
+            ),
+          )
+          .then((rows) => rows[0] ?? null);
+
+        if (!existingActionableBoardApproval) {
+          const [approval] = await db
+            .insert(approvals)
+            .values({
+              companyId: issue.companyId,
+              type: "request_board_approval",
+              requestedByAgentId: actor.agentId,
+              requestedByUserId: null,
+              status: "pending",
+              payload: buildBoardApprovalPayloadFromComment(issue, redactedBody),
+              decisionNote: null,
+              decidedByUserId: null,
+              decidedAt: null,
+              updatedAt: new Date(),
+            })
+            .returning();
+
+          if (approval) {
+            await db.insert(issueApprovals).values({
+              companyId: issue.companyId,
+              issueId: issue.id,
+              approvalId: approval.id,
+              linkedByAgentId: actor.agentId,
+              linkedByUserId: null,
+            });
+
+            await db.insert(activityLog).values({
+              companyId: issue.companyId,
+              actorType: "agent",
+              actorId: actor.agentId,
+              agentId: actor.agentId,
+              runId: actor.runId ?? null,
+              action: "approval.created",
+              entityType: "approval",
+              entityId: approval.id,
+              details: {
+                type: approval.type,
+                issueIds: [issue.id],
+                source: "agent_comment_board_approval_intent",
+              },
+            });
+          }
+        }
+      }
 
       return redactIssueComment(comment, currentUserRedactionOptions.enabled);
     },
