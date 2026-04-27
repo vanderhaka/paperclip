@@ -4461,7 +4461,7 @@ export function heartbeatService(db: Db) {
       { id: string; companyId: string; identifier: string | null; status: string }
     >();
 
-    const activeRunIssues = await db
+    const queuedRunIssues = await db
       .selectDistinctOn([issues.id], {
         id: issues.id,
         companyId: issues.companyId,
@@ -4478,7 +4478,7 @@ export function heartbeatService(db: Db) {
       )
       .where(
         and(
-          inArray(heartbeatRuns.status, ["queued", "running"]),
+          eq(heartbeatRuns.status, "queued"),
           inArray(issues.status, CLOSED_ISSUE_RUN_STATUSES),
         ),
       );
@@ -4506,7 +4506,7 @@ export function heartbeatService(db: Db) {
         ),
       );
 
-    for (const issue of [...activeRunIssues, ...pendingWakeupIssues]) {
+    for (const issue of [...queuedRunIssues, ...pendingWakeupIssues]) {
       issueCandidates.set(issue.id, issue);
     }
 

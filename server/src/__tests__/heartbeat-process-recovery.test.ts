@@ -493,6 +493,23 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(deferredWakeup?.status).toBe("cancelled");
   });
 
+  it("does not sweep a running run that is wrapping up after closing its issue", async () => {
+    const { runId } = await seedRunFixture({
+      agentStatus: "running",
+      runStatus: "running",
+      issueStatus: "done",
+    });
+
+    const heartbeat = heartbeatService(db);
+    const result = await heartbeat.cancelActiveRunsForClosedIssues();
+
+    expect(result.cancelledRuns).toBe(0);
+    expect(result.runIds).toEqual([]);
+
+    const run = await heartbeat.getRun(runId);
+    expect(run?.status).toBe("running");
+  });
+
   it("does not promote deferred wakeups when a closed issue run releases", async () => {
     const { companyId, agentId, runId, issueId } = await seedRunFixture({
       agentStatus: "running",
