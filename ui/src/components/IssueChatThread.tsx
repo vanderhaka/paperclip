@@ -212,6 +212,7 @@ interface IssueChatThreadProps {
   showJumpToLatest?: boolean;
   emptyMessage?: string;
   variant?: "full" | "embedded";
+  layout?: "standard" | "filled";
   enableLiveTranscriptPolling?: boolean;
   transcriptsByRunId?: ReadonlyMap<string, readonly IssueChatTranscriptEntry[]>;
   hasOutputForRun?: (runId: string) => boolean;
@@ -1794,6 +1795,7 @@ export function IssueChatThread({
   showJumpToLatest,
   emptyMessage,
   variant = "full",
+  layout = "standard",
   enableLiveTranscriptPolling = true,
   transcriptsByRunId,
   hasOutputForRun: hasOutputForRunOverride,
@@ -1940,6 +1942,7 @@ export function IssueChatThread({
   );
 
   const resolvedShowJumpToLatest = showJumpToLatest ?? variant === "full";
+  const filled = layout === "filled";
   const resolvedEmptyMessage = emptyMessage
     ?? (variant === "embedded"
       ? "No run output yet."
@@ -1952,9 +1955,12 @@ export function IssueChatThread({
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <IssueChatCtx.Provider value={chatCtx}>
-      <div className={cn(variant === "embedded" ? "space-y-3" : "space-y-4")}>
+      <div className={cn(
+        variant === "embedded" ? "space-y-3" : "space-y-4",
+        filled && "flex h-full min-h-0 flex-col space-y-0",
+      )}>
         {resolvedShowJumpToLatest ? (
-          <div className="flex justify-end">
+          <div className={cn("flex justify-end", filled && "mb-2 shrink-0")}>
             <button
               type="button"
               onClick={handleJumpToLatest}
@@ -1971,8 +1977,13 @@ export function IssueChatThread({
           emptyMessage={resolvedEmptyMessage}
           variant={variant}
         >
-          <ThreadPrimitive.Root className="">
-            <ThreadPrimitive.Viewport className={variant === "embedded" ? "space-y-3" : "space-y-4"}>
+          <ThreadPrimitive.Root className={cn(filled && "flex min-h-0 flex-1 flex-col")}>
+            <ThreadPrimitive.Viewport
+              className={cn(
+                variant === "embedded" ? "space-y-3" : "space-y-4",
+                filled && "min-h-0 flex-1 overflow-y-auto pr-2",
+              )}
+            >
               <ThreadPrimitive.Empty>
                 <div className={cn(
                   "text-center text-sm text-muted-foreground",
@@ -1990,20 +2001,22 @@ export function IssueChatThread({
         </IssueChatErrorBoundary>
 
         {showComposer ? (
-          <IssueChatComposer
-            ref={composerRef}
-            onImageUpload={imageUploadHandler}
-            onAttachImage={onAttachImage}
-            draftKey={draftKey}
-            enableReassign={enableReassign}
-            reassignOptions={reassignOptions}
-            currentAssigneeValue={currentAssigneeValue}
-            suggestedAssigneeValue={suggestedAssigneeValue}
-            mentions={mentions}
-            agentMap={agentMap}
-            composerDisabledReason={composerDisabledReason}
-            issueStatus={issueStatus}
-          />
+          <div className={cn(filled && "shrink-0 border-t border-border bg-background/95 pt-3")}>
+            <IssueChatComposer
+              ref={composerRef}
+              onImageUpload={imageUploadHandler}
+              onAttachImage={onAttachImage}
+              draftKey={draftKey}
+              enableReassign={enableReassign}
+              reassignOptions={reassignOptions}
+              currentAssigneeValue={currentAssigneeValue}
+              suggestedAssigneeValue={suggestedAssigneeValue}
+              mentions={mentions}
+              agentMap={agentMap}
+              composerDisabledReason={composerDisabledReason}
+              issueStatus={issueStatus}
+            />
+          </div>
         ) : null}
       </div>
       </IssueChatCtx.Provider>

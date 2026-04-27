@@ -291,7 +291,7 @@ function IssueDetailLoadingState({
   const identifier = headerSeed?.identifier ?? headerSeed?.id.slice(0, 8) ?? null;
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="flex max-w-5xl flex-col gap-6">
       <div className="space-y-3">
         <Skeleton className="h-3 w-40" />
 
@@ -377,7 +377,7 @@ export function IssueDetail() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [mobilePropsOpen, setMobilePropsOpen] = useState(false);
-  const [detailTab, setDetailTab] = useState("chat");
+  const [detailTab, setDetailTab] = useState("activity");
   const [pendingApprovalAction, setPendingApprovalAction] = useState<{
     approvalId: string;
     action: "approve" | "reject";
@@ -438,14 +438,14 @@ export function IssueDetail() {
   const shouldPrefetchOlderComments = useMemo(
     () =>
       shouldAutoloadOlderIssueComments({
-        activeDetailTab: detailTab,
+        activeDetailTab: "chat",
         hasOlderComments: hasOlderComments ?? false,
         loadedCommentCount: comments.length,
         initialPageLoading: commentsLoading,
         olderPageLoading: commentsLoadingOlder,
         autoLoadLimit: ISSUE_COMMENT_AUTOLOAD_LIMIT,
       }),
-    [comments.length, commentsLoading, commentsLoadingOlder, detailTab, hasOlderComments],
+    [comments.length, commentsLoading, commentsLoadingOlder, hasOlderComments],
   );
 
   useEffect(() => {
@@ -1494,7 +1494,6 @@ export function IssueDetail() {
       if (action === "focus_comment") {
         event.preventDefault();
         event.stopPropagation();
-        setDetailTab("chat");
         setPendingCommentComposerFocusKey((current) => current + 1);
       }
     };
@@ -1512,9 +1511,8 @@ export function IssueDetail() {
 
   useEffect(() => {
     if (pendingCommentComposerFocusKey === 0) return;
-    if (detailTab !== "chat") return;
     commentComposerRef.current?.focus();
-  }, [detailTab, pendingCommentComposerFocusKey]);
+  }, [pendingCommentComposerFocusKey]);
 
   const isImageAttachment = (attachment: IssueAttachment) => attachment.contentType.startsWith("image/");
   const attachmentList = attachments ?? [];
@@ -1820,23 +1818,6 @@ export function IssueDetail() {
           as="h2"
           className="text-xl font-bold"
         />
-
-        <InlineEditor
-          value={issue.description ?? ""}
-          onSave={(description) => updateIssue.mutateAsync({ description })}
-          as="p"
-          className="text-[15px] leading-7 text-foreground"
-          placeholder="Add a description..."
-          multiline
-          mentions={mentionOptions}
-          imageUploadHandler={async (file) => {
-            const attachment = await uploadAttachment.mutateAsync(file);
-            return attachment.contentPath;
-          }}
-          onDropFile={async (file) => {
-            await uploadAttachment.mutateAsync(file);
-          }}
-        />
       </div>
 
       <PluginSlotOutlet
@@ -1864,6 +1845,113 @@ export function IssueDetail() {
         }}
         className="flex flex-wrap gap-2"
         itemClassName="inline-flex"
+      />
+
+      <section className="flex h-[calc(100dvh-15.5rem)] min-h-[400px] max-h-[720px] flex-col overflow-hidden rounded-lg border border-border bg-card/40">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+            <h3 className="truncate text-sm font-medium">Conversation</h3>
+          </div>
+          {hasOlderComments ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={commentsLoadingOlder}
+              onClick={() => {
+                void fetchOlderComments();
+              }}
+              className="shrink-0 shadow-none"
+            >
+              {commentsLoadingOlder ? "Loading..." : "Earlier"}
+            </Button>
+          ) : null}
+        </div>
+        <div className="min-h-0 flex-1 p-3">
+          {issueChatInitialLoading ? (
+            <IssueChatSkeleton />
+          ) : (
+            <IssueChatThread
+              composerRef={commentComposerRef}
+              comments={commentsWithRunMeta}
+              feedbackVotes={feedbackVotes}
+              feedbackDataSharingPreference={feedbackDataSharingPreference}
+              feedbackTermsUrl={FEEDBACK_TERMS_URL}
+              linkedRuns={timelineRuns}
+              timelineEvents={timelineEvents}
+              liveRuns={liveRuns}
+              activeRun={activeRun}
+              companyId={issue.companyId}
+              projectId={issue.projectId}
+              issueStatus={issue.status}
+              agentMap={agentMap}
+              currentUserId={currentUserId}
+              enableLiveTranscriptPolling={false}
+              transcriptsByRunId={issueChatTranscriptByRun}
+              hasOutputForRun={issueChatHasOutputForRun}
+              draftKey={`paperclip:issue-comment-draft:${issue.id}`}
+              enableReassign
+              reassignOptions={commentReassignOptions}
+              currentAssigneeValue={actualAssigneeValue}
+              suggestedAssigneeValue={suggestedAssigneeValue}
+              mentions={mentionOptions}
+              composerDisabledReason={commentComposerDisabledReason}
+              layout="filled"
+              onVote={async (commentId, vote, options) => {
+                await feedbackVoteMutation.mutateAsync({
+                  targetType: "issue_comment",
+                  targetId: commentId,
+                  vote,
+                  reason: options?.reason,
+                  allowSharing: options?.allowSharing,
+                  sharingPreferenceAtSubmit: feedbackDataSharingPreference,
+                });
+              }}
+              onAdd={async (body, reopen, reassignment) => {
+                if (reassignment) {
+                  await addCommentAndReassign.mutateAsync({ body, reopen, reassignment });
+                  return;
+                }
+                await addComment.mutateAsync({ body, reopen });
+              }}
+              imageUploadHandler={async (file) => {
+                const attachment = await uploadAttachment.mutateAsync(file);
+                return attachment.contentPath;
+              }}
+              onAttachImage={async (file) => {
+                await uploadAttachment.mutateAsync(file);
+              }}
+              onInterruptQueued={async (runId) => {
+                await interruptQueuedComment.mutateAsync(runId);
+              }}
+              interruptingQueuedRunId={interruptQueuedComment.isPending ? interruptQueuedComment.variables ?? null : null}
+              onCancelRun={runningIssueRun
+                ? async () => {
+                    await interruptQueuedComment.mutateAsync(runningIssueRun.id);
+                  }
+                : undefined}
+              onImageClick={handleChatImageClick}
+            />
+          )}
+        </div>
+      </section>
+
+      <InlineEditor
+        value={issue.description ?? ""}
+        onSave={(description) => updateIssue.mutateAsync({ description })}
+        as="p"
+        className="text-[15px] leading-7 text-foreground"
+        placeholder="Add a description..."
+        multiline
+        mentions={mentionOptions}
+        imageUploadHandler={async (file) => {
+          const attachment = await uploadAttachment.mutateAsync(file);
+          return attachment.contentPath;
+        }}
+        onDropFile={async (file) => {
+          await uploadAttachment.mutateAsync(file);
+        }}
       />
 
       <PluginSlotOutlet
@@ -2112,10 +2200,6 @@ export function IssueDetail() {
 
       <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-3">
         <TabsList variant="line" className="w-full justify-start gap-1">
-          <TabsTrigger value="chat" className="gap-1.5">
-            <MessageSquare className="h-3.5 w-3.5" />
-            Chat
-          </TabsTrigger>
           <TabsTrigger value="activity" className="gap-1.5">
             <ActivityIcon className="h-3.5 w-3.5" />
             Activity
@@ -2126,90 +2210,6 @@ export function IssueDetail() {
             </TabsTrigger>
           ))}
         </TabsList>
-
-        <TabsContent value="chat">
-          {issueChatInitialLoading ? (
-            <IssueChatSkeleton />
-          ) : (
-            <div className="space-y-3">
-              {hasOlderComments ? (
-                <div className="flex justify-center">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={commentsLoadingOlder}
-                    onClick={() => {
-                      void fetchOlderComments();
-                    }}
-                  >
-                    {commentsLoadingOlder ? "Loading earlier comments..." : "Load earlier comments"}
-                  </Button>
-                </div>
-              ) : null}
-              <IssueChatThread
-                composerRef={commentComposerRef}
-                comments={commentsWithRunMeta}
-                feedbackVotes={feedbackVotes}
-                feedbackDataSharingPreference={feedbackDataSharingPreference}
-                feedbackTermsUrl={FEEDBACK_TERMS_URL}
-                linkedRuns={timelineRuns}
-                timelineEvents={timelineEvents}
-                liveRuns={liveRuns}
-                activeRun={activeRun}
-                companyId={issue.companyId}
-                projectId={issue.projectId}
-                issueStatus={issue.status}
-                agentMap={agentMap}
-                currentUserId={currentUserId}
-                enableLiveTranscriptPolling={false}
-                transcriptsByRunId={issueChatTranscriptByRun}
-                hasOutputForRun={issueChatHasOutputForRun}
-                draftKey={`paperclip:issue-comment-draft:${issue.id}`}
-                enableReassign
-                reassignOptions={commentReassignOptions}
-                currentAssigneeValue={actualAssigneeValue}
-                suggestedAssigneeValue={suggestedAssigneeValue}
-                mentions={mentionOptions}
-                composerDisabledReason={commentComposerDisabledReason}
-                onVote={async (commentId, vote, options) => {
-                  await feedbackVoteMutation.mutateAsync({
-                    targetType: "issue_comment",
-                    targetId: commentId,
-                    vote,
-                    reason: options?.reason,
-                    allowSharing: options?.allowSharing,
-                    sharingPreferenceAtSubmit: feedbackDataSharingPreference,
-                  });
-                }}
-                onAdd={async (body, reopen, reassignment) => {
-                  if (reassignment) {
-                    await addCommentAndReassign.mutateAsync({ body, reopen, reassignment });
-                    return;
-                  }
-                  await addComment.mutateAsync({ body, reopen });
-                }}
-                imageUploadHandler={async (file) => {
-                  const attachment = await uploadAttachment.mutateAsync(file);
-                  return attachment.contentPath;
-                }}
-                onAttachImage={async (file) => {
-                  await uploadAttachment.mutateAsync(file);
-                }}
-                onInterruptQueued={async (runId) => {
-                  await interruptQueuedComment.mutateAsync(runId);
-                }}
-                interruptingQueuedRunId={interruptQueuedComment.isPending ? interruptQueuedComment.variables ?? null : null}
-                onCancelRun={runningIssueRun
-                  ? async () => {
-                      await interruptQueuedComment.mutateAsync(runningIssueRun.id);
-                    }
-                  : undefined}
-                onImageClick={handleChatImageClick}
-              />
-            </div>
-          )}
-        </TabsContent>
 
         <TabsContent value="activity">
           {activityInitialLoading ? (

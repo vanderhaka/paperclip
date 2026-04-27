@@ -162,6 +162,43 @@ describe("IssueChatThread", () => {
     });
   });
 
+  it("can fill a bounded panel with an internal message scroll and pinned composer", () => {
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <MemoryRouter>
+          <IssueChatThread
+            comments={[]}
+            linkedRuns={[]}
+            timelineEvents={[]}
+            liveRuns={[]}
+            onAdd={async () => {}}
+            layout="filled"
+            enableLiveTranscriptPolling={false}
+          />
+        </MemoryRouter>,
+      );
+    });
+
+    const rootElement = container.querySelector('[data-testid="thread-root"]') as HTMLDivElement | null;
+    expect(rootElement?.className).toContain("flex");
+    expect(rootElement?.className).toContain("flex-1");
+
+    const viewport = container.querySelector('[data-testid="thread-viewport"]') as HTMLDivElement | null;
+    expect(viewport).not.toBeNull();
+    expect(viewport?.className).toContain("overflow-y-auto");
+    expect(viewport?.className).toContain("flex-1");
+
+    const composer = container.querySelector('[data-testid="issue-chat-composer"]') as HTMLDivElement | null;
+    expect(composer?.parentElement?.className).toContain("shrink-0");
+    expect(composer?.parentElement?.className).toContain("border-t");
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
   it("supports the embedded read-only variant without the jump control", () => {
     const root = createRoot(container);
 
