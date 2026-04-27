@@ -3,6 +3,7 @@ import { and, desc, eq, gte, inArray, lt, ne, or, sql } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import {
   agents,
+  companies,
   agentConfigRevisions,
   agentApiKeys,
   agentRuntimeState,
@@ -17,6 +18,7 @@ import {
   issueComments,
 } from "@paperclipai/db";
 import { isUuidLike, normalizeAgentUrlKey } from "@paperclipai/shared";
+import { DEFAULT_PI_LOCAL_MODEL } from "@paperclipai/adapter-pi-local";
 import { conflict, notFound, unprocessable } from "../errors.js";
 import { normalizeAgentPermissions } from "./agent-permissions.js";
 import { REDACTED_EVENT_VALUE, sanitizeRecord } from "../redaction.js";
@@ -44,6 +46,14 @@ const CONFIG_REVISION_FIELDS = [
 
 type ConfigRevisionField = (typeof CONFIG_REVISION_FIELDS)[number];
 type AgentConfigSnapshot = Pick<typeof agents.$inferSelect, ConfigRevisionField>;
+type AgentPolicyCompany = Pick<typeof companies.$inferSelect, "issuePrefix" | "name">;
+type AgentPolicyExisting = Pick<typeof agents.$inferSelect, "adapterType" | "adapterConfig">;
+type AgentPatch = Partial<typeof agents.$inferInsert>;
+
+export const EMPLOYEE_MODEL_POLICY_ADAPTER_TYPE = "pi_local";
+export const EMPLOYEE_MODEL_POLICY_MODEL = DEFAULT_PI_LOCAL_MODEL;
+export const EMPLOYEE_MODEL_POLICY_THINKING = "medium";
+const DEEPSEEK_V4_POLICY_COMPANY_PREFIXES = new Set(["JARA"]);
 
 interface RevisionMetadata {
   createdByAgentId?: string | null;
@@ -68,6 +78,55 @@ interface AgentShortnameCollisionOptions {
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function shouldEnforceEmployeeModelPolicy(company: AgentPolicyCompany | null | undefined): boolean {
+  if (!company) return false;
+  return DEEPSEEK_V4_POLICY_COMPANY_PREFIXES.has(company.issuePrefix);
+}
+
+function isEmployeeModelPolicyCompliant(existing: AgentPolicyExisting | null | undefined): boolean {
+  if (!existing) return false;
+  const adapterConfig = isPlainRecord(existing.adapterConfig) ? existing.adapterConfig : {};
+  return (
+    existing.adapterType === EMPLOYEE_MODEL_POLICY_ADAPTER_TYPE
+    && adapterConfig.model === EMPLOYEE_MODEL_POLICY_MODEL
+  );
+}
+
+export function applyEmployeeModelPolicy(
+  company: AgentPolicyCompany | null | undefined,
+  data: AgentPatch,
+  existing?: AgentPolicyExisting | null,
+): AgentPatch {
+  if (!shouldEnforceEmployeeModelPolicy(company)) return data;
+
+  const touchesAdapter =
+    Object.prototype.hasOwnProperty.call(data, "adapterType")
+    || Object.prototype.hasOwnProperty.call(data, "adapterConfig");
+  if (existing && !touchesAdapter && isEmployeeModelPolicyCompliant(existing)) {
+    return data;
+  }
+
+  const existingConfig = isPlainRecord(existing?.adapterConfig) ? existing.adapterConfig : {};
+  const incomingConfig = isPlainRecord(data.adapterConfig) ? data.adapterConfig : {};
+  const thinking =
+    typeof incomingConfig.thinking === "string" && incomingConfig.thinking.trim().length > 0
+      ? incomingConfig.thinking
+      : typeof existingConfig.thinking === "string" && existingConfig.thinking.trim().length > 0
+        ? existingConfig.thinking
+        : EMPLOYEE_MODEL_POLICY_THINKING;
+
+  return {
+    ...data,
+    adapterType: EMPLOYEE_MODEL_POLICY_ADAPTER_TYPE,
+    adapterConfig: {
+      ...existingConfig,
+      ...incomingConfig,
+      model: EMPLOYEE_MODEL_POLICY_MODEL,
+      thinking,
+    },
+  };
 }
 
 function jsonEqual(left: unknown, right: unknown): boolean {
@@ -253,6 +312,14 @@ export function agentService(db: Db) {
     return normalizeAgentRow(hydrated);
   }
 
+  async function getCompanyForAgentPolicy(companyId: string): Promise<AgentPolicyCompany | null> {
+    return db
+      .select({ issuePrefix: companies.issuePrefix, name: companies.name })
+      .from(companies)
+      .where(eq(companies.id, companyId))
+      .then((rows) => rows[0] ?? null);
+  }
+
   async function ensureManager(companyId: string, managerId: string) {
     const manager = await getById(managerId);
     if (!manager) throw notFound("Manager not found");
@@ -334,7 +401,8 @@ export function agentService(db: Db) {
       }
     }
 
-    const normalizedPatch = { ...data } as Partial<typeof agents.$inferInsert>;
+    const companyPolicy = await getCompanyForAgentPolicy(existing.companyId);
+    const normalizedPatch = applyEmployeeModelPolicy(companyPolicy, data, existing) as Partial<typeof agents.$inferInsert>;
     if (data.permissions !== undefined) {
       const role = (data.role ?? existing.role) as string;
       normalizedPatch.permissions = normalizeAgentPermissions(data.permissions, role);
@@ -398,9 +466,11 @@ export function agentService(db: Db) {
 
       const role = data.role ?? "general";
       const normalizedPermissions = normalizeAgentPermissions(data.permissions, role);
+      const companyPolicy = await getCompanyForAgentPolicy(companyId);
+      const policyData = applyEmployeeModelPolicy(companyPolicy, data);
       const created = await db
         .insert(agents)
-        .values({ ...data, name: uniqueName, companyId, role, permissions: normalizedPermissions })
+        .values({ ...policyData, name: uniqueName, companyId, role, permissions: normalizedPermissions })
         .returning()
         .then((rows) => rows[0]);
 
