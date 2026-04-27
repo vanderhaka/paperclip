@@ -8,7 +8,7 @@ describe("buildNewAgentRuntimeConfig", () => {
       heartbeat: {
         enabled: false,
         intervalSec: 300,
-        wakeOnDemand: true,
+        wakeOnDemand: false,
         cooldownSec: 10,
         maxConcurrentRuns: 1,
       },
@@ -25,7 +25,7 @@ describe("buildNewAgentRuntimeConfig", () => {
       heartbeat: {
         enabled: true,
         intervalSec: 3600,
-        wakeOnDemand: true,
+        wakeOnDemand: false,
         cooldownSec: 10,
         maxConcurrentRuns: 1,
       },

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { runChildProcess } from "./server-utils.js";
+import { applyPaperclipWorkspaceEnv, runChildProcess } from "./server-utils.js";
 
 function isPidAlive(pid: number) {
   try {
@@ -19,6 +19,50 @@ async function waitForPidExit(pid: number, timeoutMs = 2_000) {
   }
   return !isPidAlive(pid);
 }
+
+describe("applyPaperclipWorkspaceEnv", () => {
+  it("adds shared workspace env vars including AGENT_HOME", () => {
+    const env = applyPaperclipWorkspaceEnv(
+      {},
+      {
+        workspaceCwd: "/tmp/workspace",
+        workspaceSource: "project_primary",
+        workspaceStrategy: "git_worktree",
+        workspaceId: "workspace-1",
+        workspaceRepoUrl: "https://github.com/vanderhaka/paperclip.git",
+        workspaceRepoRef: "master",
+        workspaceBranch: "feature/test",
+        workspaceWorktreePath: "/tmp/worktree",
+        agentHome: "/tmp/agent-home",
+      },
+    );
+
+    expect(env).toEqual({
+      PAPERCLIP_WORKSPACE_CWD: "/tmp/workspace",
+      PAPERCLIP_WORKSPACE_SOURCE: "project_primary",
+      PAPERCLIP_WORKSPACE_STRATEGY: "git_worktree",
+      PAPERCLIP_WORKSPACE_ID: "workspace-1",
+      PAPERCLIP_WORKSPACE_REPO_URL: "https://github.com/vanderhaka/paperclip.git",
+      PAPERCLIP_WORKSPACE_REPO_REF: "master",
+      PAPERCLIP_WORKSPACE_BRANCH: "feature/test",
+      PAPERCLIP_WORKSPACE_WORKTREE_PATH: "/tmp/worktree",
+      AGENT_HOME: "/tmp/agent-home",
+    });
+  });
+
+  it("skips empty workspace env values", () => {
+    const env = applyPaperclipWorkspaceEnv(
+      {},
+      {
+        workspaceCwd: "",
+        workspaceSource: null,
+        agentHome: "",
+      },
+    );
+
+    expect(env).toEqual({});
+  });
+});
 
 describe("runChildProcess", () => {
   it("waits for onSpawn before sending stdin to the child", async () => {

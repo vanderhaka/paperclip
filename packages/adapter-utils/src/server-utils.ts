@@ -179,6 +179,41 @@ export function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
+export function applyPaperclipWorkspaceEnv(
+  env: Record<string, string>,
+  input: {
+    workspaceCwd?: string | null;
+    workspaceSource?: string | null;
+    workspaceStrategy?: string | null;
+    workspaceId?: string | null;
+    workspaceRepoUrl?: string | null;
+    workspaceRepoRef?: string | null;
+    workspaceBranch?: string | null;
+    workspaceWorktreePath?: string | null;
+    agentHome?: string | null;
+  },
+): Record<string, string> {
+  const mappings = [
+    ["PAPERCLIP_WORKSPACE_CWD", input.workspaceCwd],
+    ["PAPERCLIP_WORKSPACE_SOURCE", input.workspaceSource],
+    ["PAPERCLIP_WORKSPACE_STRATEGY", input.workspaceStrategy],
+    ["PAPERCLIP_WORKSPACE_ID", input.workspaceId],
+    ["PAPERCLIP_WORKSPACE_REPO_URL", input.workspaceRepoUrl],
+    ["PAPERCLIP_WORKSPACE_REPO_REF", input.workspaceRepoRef],
+    ["PAPERCLIP_WORKSPACE_BRANCH", input.workspaceBranch],
+    ["PAPERCLIP_WORKSPACE_WORKTREE_PATH", input.workspaceWorktreePath],
+    ["AGENT_HOME", input.agentHome],
+  ] as const;
+
+  for (const [key, value] of mappings) {
+    if (typeof value === "string" && value.length > 0) {
+      env[key] = value;
+    }
+  }
+
+  return env;
+}
+
 export function parseJson(value: string): Record<string, unknown> | null {
   try {
     return JSON.parse(value) as Record<string, unknown>;

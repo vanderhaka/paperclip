@@ -1,0 +1,11 @@
+# TDD Progress: upstream-safe-wins
+
+| Issue | Title | Files | Depends On | RED | GREEN | REFACTOR | QA | Status | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | Preserve absolute Paperclip links in markdown | `ui/src/lib/issue-reference.ts`, `ui/src/lib/mention-chips.ts`, `ui/src/components/MarkdownBody.test.tsx`, `ui/src/lib/issue-reference.test.ts` | none | DONE | DONE | DONE | DONE | DONE | Targeted tests pass. |
+| 2 | Load older issue comments reliably | `server/src/services/issues.ts`, `server/src/__tests__/issues-service.test.ts`, `ui/src/lib/optimistic-issue-comments.ts`, `ui/src/pages/IssueDetail.tsx` | none | DONE | DONE | DONE | DONE | DONE | Targeted UI and server tests pass. |
+| 3 | Redact CLI agent secrets by default | `cli/src/commands/client/agent.ts`, `cli/src/commands/client/redaction.ts`, `cli/src/__tests__/client-redaction.test.ts` | none | DONE | DONE | DONE | DONE | DONE | Redaction helper tests pass; command print boundary wired. |
+| 4 | Respect low heartbeat maxConcurrentRuns values | `server/src/services/heartbeat.ts`, `server/src/__tests__/heartbeat-policy.test.ts` | none | DONE | DONE | DONE | DONE | DONE | Fork already defaulted to 1; regression guard added and passing. |
+| 5 | Centralize adapter workspace env propagation | `packages/adapter-utils/src/server-utils.ts`, local adapter `execute.ts` files, CEO onboarding asset | 4 | DONE | DONE | DONE | DONE | DONE | Shared helper added; touched adapters typecheck. Vitest cannot directly run this package because root projects omit adapter-utils. |
+| 6 | Safer heartbeat defaults and manual invoke behavior | `server/src/services/heartbeat.ts`, `ui/src/lib/new-agent-runtime-config.ts`, `ui/src/components/AgentConfigForm.tsx` | 4 | DONE | DONE | DONE | DONE | DONE | New agent config defaults quiet for assignment/automation demand wakes; legacy missing config stays compatible, and manual on-demand invoke bypasses this gate. |
+| 7 | Avoid idle heartbeat session bloat | `server/src/services/heartbeat.ts`, `server/src/__tests__/heartbeat-workspace-session.test.ts` | 4,6 | DONE | DONE | DONE | DONE | DONE | Timer wakes without a real task no longer create a synthetic `__heartbeat__` task session. |

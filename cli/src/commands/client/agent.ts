@@ -16,9 +16,15 @@ import {
   resolveCommandContext,
   type BaseClientOptions,
 } from "./common.js";
+import { redactCliSecrets } from "./redaction.js";
 
 interface AgentListOptions extends BaseClientOptions {
   companyId?: string;
+  showSecrets?: boolean;
+}
+
+interface AgentGetOptions extends BaseClientOptions {
+  showSecrets?: boolean;
 }
 
 interface AgentLocalCliOptions extends BaseClientOptions {
@@ -164,13 +170,17 @@ export function registerAgentCommands(program: Command): void {
       .command("list")
       .description("List agents for a company")
       .requiredOption("-C, --company-id <id>", "Company ID")
+      .option("--show-secrets", "Print secret fields in JSON output")
       .action(async (opts: AgentListOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
           const rows = (await ctx.api.get<Agent[]>(`/api/companies/${ctx.companyId}/agents`)) ?? [];
 
           if (ctx.json) {
-            printOutput(rows, { json: true });
+            if (opts.showSecrets) {
+              console.error("warning: printing agent secrets because --show-secrets was provided");
+            }
+            printOutput(redactCliSecrets(rows, { showSecrets: opts.showSecrets }), { json: true });
             return;
           }
 
@@ -204,11 +214,15 @@ export function registerAgentCommands(program: Command): void {
       .command("get")
       .description("Get one agent")
       .argument("<agentId>", "Agent ID")
-      .action(async (agentId: string, opts: BaseClientOptions) => {
+      .option("--show-secrets", "Print secret fields")
+      .action(async (agentId: string, opts: AgentGetOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
           const row = await ctx.api.get<Agent>(`/api/agents/${agentId}`);
-          printOutput(row, { json: ctx.json });
+          if (opts.showSecrets) {
+            console.error("warning: printing agent secrets because --show-secrets was provided");
+          }
+          printOutput(redactCliSecrets(row, { showSecrets: opts.showSecrets }), { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }

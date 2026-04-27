@@ -352,8 +352,8 @@ describe("deriveTaskKeyWithHeartbeatFallback", () => {
     expect(deriveTaskKeyWithHeartbeatFallback({ issueId: "issue-456" }, null)).toBe("issue-456");
   });
 
-  it("returns __heartbeat__ for timer wakes with no explicit key", () => {
-    expect(deriveTaskKeyWithHeartbeatFallback({ wakeSource: "timer" }, null)).toBe("__heartbeat__");
+  it("does not create a synthetic task key for idle timer wakes", () => {
+    expect(deriveTaskKeyWithHeartbeatFallback({ wakeSource: "timer" }, null)).toBeNull();
   });
 
   it("prefers explicit key over heartbeat fallback even on timer wakes", () => {

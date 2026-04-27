@@ -41,6 +41,7 @@ import {
   isQueuedIssueComment,
   matchesIssueRef,
   mergeIssueComments,
+  shouldAutoloadOlderIssueComments,
   upsertIssueCommentInPages,
   type IssueCommentReassignment,
   type OptimisticIssueComment,
@@ -109,6 +110,7 @@ type IssueDetailComment = (IssueComment | OptimisticIssueComment) & {
 
 const FEEDBACK_TERMS_URL = import.meta.env.VITE_FEEDBACK_TERMS_URL?.trim() || "https://paperclip.ing/tos";
 const ISSUE_COMMENT_PAGE_SIZE = 50;
+const ISSUE_COMMENT_AUTOLOAD_LIMIT = ISSUE_COMMENT_PAGE_SIZE * 3;
 
 function keepPreviousData<T>(previousData: T | undefined) {
   return previousData;
@@ -433,6 +435,23 @@ export function IssueDetail() {
     () => flattenIssueCommentPages(commentPages?.pages),
     [commentPages?.pages],
   );
+  const shouldPrefetchOlderComments = useMemo(
+    () =>
+      shouldAutoloadOlderIssueComments({
+        activeDetailTab: detailTab,
+        hasOlderComments: hasOlderComments ?? false,
+        loadedCommentCount: comments.length,
+        initialPageLoading: commentsLoading,
+        olderPageLoading: commentsLoadingOlder,
+        autoLoadLimit: ISSUE_COMMENT_AUTOLOAD_LIMIT,
+      }),
+    [comments.length, commentsLoading, commentsLoadingOlder, detailTab, hasOlderComments],
+  );
+
+  useEffect(() => {
+    if (!shouldPrefetchOlderComments) return;
+    void fetchOlderComments();
+  }, [fetchOlderComments, shouldPrefetchOlderComments]);
 
   const { data: activity, isLoading: activityLoading } = useQuery({
     queryKey: queryKeys.issues.activity(issueId!),

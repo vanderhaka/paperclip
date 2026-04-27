@@ -921,7 +921,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                 checked={eff(
                   "heartbeat",
                   "wakeOnDemand",
-                  heartbeat.wakeOnDemand !== false,
+                  heartbeat.wakeOnDemand === true,
                 )}
                 onChange={(v) => mark("heartbeat", "wakeOnDemand", v)}
               />

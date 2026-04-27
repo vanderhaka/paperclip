@@ -393,7 +393,7 @@ Slice D — UI:       NOTHING REQUIRED for Design A (skip unless blocked)
 ## 5. How to run everything locally (copy-paste)
 
 ```bash
-cd "/Users/jamesvanderhaak/Desktop/Bike Ride/Development/PaperClip-Fork"
+cd /path/to/PaperClip-Fork
 export PATH="/opt/homebrew/opt/node@22/bin:$PATH"
 
 # Install (one-time or after branch change)

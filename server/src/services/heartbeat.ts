@@ -326,10 +326,25 @@ function appendExcerpt(prev: string, chunk: string) {
   return appendWithCap(prev, chunk, MAX_EXCERPT_BYTES);
 }
 
-function normalizeMaxConcurrentRuns(value: unknown) {
+export function normalizeMaxConcurrentRuns(value: unknown) {
   const parsed = Math.floor(asNumber(value, HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT));
   if (!Number.isFinite(parsed)) return HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT;
-  return Math.max(HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT, Math.min(HEARTBEAT_MAX_CONCURRENT_RUNS_MAX, parsed));
+  return Math.max(1, Math.min(HEARTBEAT_MAX_CONCURRENT_RUNS_MAX, parsed));
+}
+
+export function normalizeWakeOnDemand(heartbeat: unknown) {
+  const parsed = parseObject(heartbeat);
+  return asBoolean(
+    parsed.wakeOnDemand ??
+      parsed.wakeOnAssignment ??
+      parsed.wakeOnOnDemand ??
+      parsed.wakeOnAutomation,
+    true,
+  );
+}
+
+export function shouldEnforceWakeOnDemandPolicy(source: WakeupOptions["source"]) {
+  return source === "assignment" || source === "automation";
 }
 
 async function withAgentStartLock<T>(agentId: string, fn: () => Promise<T>) {
@@ -671,14 +686,6 @@ function parseIssueAssigneeAdapterOverrides(
   };
 }
 
-/**
- * Synthetic task key for timer/heartbeat wakes that have no issue context.
- * This allows timer wakes to participate in the `agentTaskSessions` system
- * and benefit from robust session resume, instead of relying solely on the
- * simpler `agentRuntimeState.sessionId` fallback.
- */
-const HEARTBEAT_TASK_KEY = "__heartbeat__";
-
 function deriveTaskKey(
   contextSnapshot: Record<string, unknown> | null | undefined,
   payload: Record<string, unknown> | null | undefined,
@@ -695,13 +702,9 @@ function deriveTaskKey(
 }
 
 /**
- * Extended task key derivation that falls back to a stable synthetic key
- * for timer/heartbeat wakes. This ensures timer wakes can resume their
- * previous session via `agentTaskSessions` instead of starting fresh.
- *
- * The synthetic key is only used when:
- * - No explicit task/issue key exists in the context
- * - The wake source is "timer" (scheduled heartbeat)
+ * Extended task key derivation for wakeups.
+ * Timer wakes without an explicit task deliberately return null so idle
+ * heartbeats do not create or extend a synthetic task session forever.
  */
 export function deriveTaskKeyWithHeartbeatFallback(
   contextSnapshot: Record<string, unknown> | null | undefined,
@@ -709,9 +712,6 @@ export function deriveTaskKeyWithHeartbeatFallback(
 ) {
   const explicit = deriveTaskKey(contextSnapshot, payload);
   if (explicit) return explicit;
-
-  const wakeSource = readNonEmptyString(contextSnapshot?.wakeSource);
-  if (wakeSource === "timer") return HEARTBEAT_TASK_KEY;
 
   return null;
 }
@@ -2253,7 +2253,7 @@ export function heartbeatService(db: Db) {
     return {
       enabled: asBoolean(heartbeat.enabled, false),
       intervalSec: Math.max(0, asNumber(heartbeat.intervalSec, 0)),
-      wakeOnDemand: asBoolean(heartbeat.wakeOnDemand ?? heartbeat.wakeOnAssignment ?? heartbeat.wakeOnOnDemand ?? heartbeat.wakeOnAutomation, true),
+      wakeOnDemand: normalizeWakeOnDemand(heartbeat),
       maxConcurrentRuns: normalizeMaxConcurrentRuns(heartbeat.maxConcurrentRuns),
     };
   }
@@ -3881,7 +3881,7 @@ export function heartbeatService(db: Db) {
       await writeSkippedRequest("heartbeat.disabled");
       return null;
     }
-    if (source !== "timer" && !policy.wakeOnDemand) {
+    if (shouldEnforceWakeOnDemandPolicy(source) && !policy.wakeOnDemand) {
       await writeSkippedRequest("heartbeat.wakeOnDemand.disabled");
       return null;
     }
