@@ -1,7 +1,11 @@
 export const type = "pi_local";
 export const label = "Pi (local)";
+export const DEFAULT_PI_LOCAL_MODEL = "deepseek/deepseek-v4-pro";
 
-export const models: Array<{ id: string; label: string }> = [];
+export const models: Array<{ id: string; label: string }> = [
+  { id: DEFAULT_PI_LOCAL_MODEL, label: DEFAULT_PI_LOCAL_MODEL },
+  { id: "deepseek/deepseek-v4-flash", label: "deepseek/deepseek-v4-flash" },
+];
 
 export const agentConfigurationDoc = `# pi_local agent configuration
 

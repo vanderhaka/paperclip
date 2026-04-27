@@ -16,6 +16,7 @@ import {
 } from "@paperclipai/adapter-codex-local";
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
+import { DEFAULT_PI_LOCAL_MODEL } from "@paperclipai/adapter-pi-local";
 import {
   Popover,
   PopoverContent,
@@ -567,6 +568,9 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                       nextValues.model = DEFAULT_GEMINI_LOCAL_MODEL;
                     } else if (t === "cursor") {
                       nextValues.model = DEFAULT_CURSOR_LOCAL_MODEL;
+                    } else if (t === "pi_local") {
+                      nextValues.model = DEFAULT_PI_LOCAL_MODEL;
+                      nextValues.thinkingEffort = "medium";
                     } else if (t === "opencode_local") {
                       nextValues.model = "";
                     }
@@ -585,6 +589,8 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                               ? DEFAULT_GEMINI_LOCAL_MODEL
                             : t === "cursor"
                               ? DEFAULT_CURSOR_LOCAL_MODEL
+                            : t === "pi_local"
+                              ? DEFAULT_PI_LOCAL_MODEL
                             : "",
                         effort: "",
                         modelReasoningEffort: "",
