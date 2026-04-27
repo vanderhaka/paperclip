@@ -12,6 +12,7 @@ import {
   Repeat,
   Settings,
   ClipboardCheck,
+  MessageSquareText,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { SidebarSection } from "./SidebarSection";
@@ -82,6 +83,7 @@ export function Sidebar() {
             <span className="truncate">New Task</span>
           </button>
           <SidebarNavItem to="/dashboard" label="Today" icon={LayoutDashboard} liveCount={liveRunCount} />
+          <SidebarNavItem to="/command" label="Command" icon={MessageSquareText} />
           <SidebarNavItem
             to="/inbox"
             label="Inbox"
