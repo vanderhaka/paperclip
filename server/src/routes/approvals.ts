@@ -18,6 +18,10 @@ import {
 } from "../services/index.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 import { redactEventPayload } from "../redaction.js";
+import {
+  AUTO_CEO_APPROVER_USER_ID,
+  shouldAutoApproveCeoHireRequest,
+} from "../services/ceo-routing-policy.js";
 
 function redactApprovalPayload<T extends { payload: Record<string, unknown> }>(approval: T): T {
   return {
@@ -81,7 +85,7 @@ export function approvalRoutes(db: Db) {
         : approvalInput.payload;
 
     const actor = getActorInfo(req);
-    const approval = await svc.create(companyId, {
+    let approval = await svc.create(companyId, {
       ...approvalInput,
       payload: normalizedPayload,
       requestedByUserId: actor.actorType === "user" ? actor.actorId : null,
@@ -111,6 +115,26 @@ export function approvalRoutes(db: Db) {
       entityId: approval.id,
       details: { type: approval.type, issueIds: uniqueIssueIds },
     });
+
+    if (approval.type === "hire_agent" && await shouldAutoApproveCeoHireRequest(db, companyId, actor.agentId)) {
+      const { approval: approvedApproval } = await svc.approve(
+        approval.id,
+        AUTO_CEO_APPROVER_USER_ID,
+        "Auto-approved because the JARVE CEO requested this hire.",
+      );
+      approval = approvedApproval;
+
+      await logActivity(db, {
+        companyId,
+        actorType: "agent",
+        actorId: actor.actorId,
+        agentId: actor.agentId,
+        action: "approval.auto_approved",
+        entityType: "approval",
+        entityId: approval.id,
+        details: { type: approval.type, policy: "jarve_ceo_hire_auto_approval" },
+      });
+    }
 
     res.status(201).json(redactApprovalPayload(approval));
   });

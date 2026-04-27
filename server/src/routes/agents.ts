@@ -57,6 +57,7 @@ import { redactEventPayload } from "../redaction.js";
 import { redactCurrentUserValue } from "../log-redaction.js";
 import { renderOrgChartSvg, renderOrgChartPng, type OrgNode, type OrgChartStyle, ORG_CHART_STYLES } from "./org-chart-svg.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
+import { logger } from "../middleware/logger.js";
 import { runClaudeLogin } from "@paperclipai/adapter-claude-local/server";
 import {
   DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
@@ -71,6 +72,10 @@ import {
   resolveDefaultAgentInstructionsBundleRole,
 } from "../services/default-agent-instructions.js";
 import { getTelemetryClient } from "../telemetry.js";
+import {
+  AUTO_CEO_APPROVER_USER_ID,
+  shouldAutoApproveCeoHireRequest,
+} from "../services/ceo-routing-policy.js";
 
 export function agentRoutes(db: Db) {
   const DEFAULT_INSTRUCTIONS_PATH_KEYS: Record<string, string> = {
@@ -1347,7 +1352,7 @@ export function agentRoutes(db: Db) {
       spentMonthlyCents: 0,
       lastHeartbeatAt: null,
     });
-    const agent = await materializeDefaultInstructionsBundleForNewAgent(createdAgent);
+    let agent = await materializeDefaultInstructionsBundleForNewAgent(createdAgent);
 
     let approval: Awaited<ReturnType<typeof approvalsSvc.getById>> | null = null;
     const actor = getActorInfo(req);
@@ -1407,6 +1412,69 @@ export function agentRoutes(db: Db) {
           agentId: actor.actorType === "agent" ? actor.actorId : null,
           userId: actor.actorType === "user" ? actor.actorId : null,
         });
+      }
+
+      if (await shouldAutoApproveCeoHireRequest(db, companyId, actor.agentId)) {
+        const { approval: approvedApproval, applied } = await approvalsSvc.approve(
+          approval.id,
+          AUTO_CEO_APPROVER_USER_ID,
+          "Auto-approved because the JARVE CEO requested this hire.",
+        );
+        approval = approvedApproval;
+        agent = (await svc.getById(agent.id)) ?? agent;
+
+        await logActivity(db, {
+          companyId,
+          actorType: "agent",
+          actorId: actor.actorId,
+          agentId: actor.agentId,
+          runId: actor.runId,
+          action: "approval.auto_approved",
+          entityType: "approval",
+          entityId: approval.id,
+          details: {
+            type: approval.type,
+            linkedAgentId: agent.id,
+            applied,
+            policy: "jarve_ceo_hire_auto_approval",
+          },
+        });
+
+        if (applied) {
+          try {
+            await heartbeat.wakeup(agent.id, {
+              source: "automation",
+              triggerDetail: "system",
+              reason: "hire_approved",
+              payload: {
+                approvalId: approval.id,
+                approvalStatus: approval.status,
+                issueId: sourceIssueIds[0] ?? null,
+                issueIds: sourceIssueIds,
+                requestedByAgentId: actor.actorId,
+              },
+              requestedByActorType: "agent",
+              requestedByActorId: actor.actorId,
+              contextSnapshot: {
+                source: "approval.auto_approved",
+                approvalId: approval.id,
+                approvalStatus: approval.status,
+                issueId: sourceIssueIds[0] ?? null,
+                issueIds: sourceIssueIds,
+                taskId: sourceIssueIds[0] ?? `approval:${approval.id}`,
+                taskKey: `approval:${approval.id}:hire:${agent.id}`,
+                wakeReason: "hire_approved",
+                forceFreshSession: true,
+                requestedByAgentId: actor.actorId,
+              },
+            });
+          } catch (err) {
+            logger.warn(
+              { err, approvalId: approval.id, hireApprovedAgentId: agent.id },
+              "failed to queue auto-approved hire wakeup",
+            );
+          }
+        }
       }
     }
 

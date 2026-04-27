@@ -35,6 +35,7 @@ import { instanceSettingsService } from "./instance-settings.js";
 import { redactCurrentUserText } from "../log-redaction.js";
 import { resolveIssueGoalId, resolveNextIssueGoalId } from "./issue-goal-fallback.js";
 import { getDefaultCompanyGoal } from "./goals.js";
+import { resolveDefaultCeoTaskAssigneeId } from "./ceo-routing-policy.js";
 
 const ALL_ISSUE_STATUSES = ["backlog", "todo", "in_progress", "in_review", "blocked", "done", "cancelled"];
 const MAX_ISSUE_COMMENT_PAGE_LIMIT = 500;
@@ -1538,16 +1539,27 @@ export function issueService(db: Db) {
         delete issueData.executionWorkspacePreference;
         delete issueData.executionWorkspaceSettings;
       }
-      if (data.assigneeAgentId && data.assigneeUserId) {
+      if (
+        !issueData.assigneeAgentId &&
+        !issueData.assigneeUserId &&
+        issueData.createdByUserId &&
+        !issueData.createdByAgentId
+      ) {
+        const defaultCeoAssigneeId = await resolveDefaultCeoTaskAssigneeId(db, companyId);
+        if (defaultCeoAssigneeId) {
+          issueData.assigneeAgentId = defaultCeoAssigneeId;
+        }
+      }
+      if (issueData.assigneeAgentId && issueData.assigneeUserId) {
         throw unprocessable("Issue can only have one assignee");
       }
-      if (data.assigneeAgentId) {
-        await assertAssignableAgent(companyId, data.assigneeAgentId);
+      if (issueData.assigneeAgentId) {
+        await assertAssignableAgent(companyId, issueData.assigneeAgentId);
       }
-      if (data.assigneeUserId) {
-        await assertAssignableUser(companyId, data.assigneeUserId);
+      if (issueData.assigneeUserId) {
+        await assertAssignableUser(companyId, issueData.assigneeUserId);
       }
-      if (data.status === "in_progress" && !data.assigneeAgentId && !data.assigneeUserId) {
+      if (issueData.status === "in_progress" && !issueData.assigneeAgentId && !issueData.assigneeUserId) {
         throw unprocessable("in_progress issues require an assignee");
       }
       return db.transaction(async (tx) => {
