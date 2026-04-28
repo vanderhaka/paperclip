@@ -304,9 +304,7 @@ export function CompanyRail() {
                 hasUnreadInbox={hasUnreadInboxByCompanyId.get(company.id) ?? false}
                 onSelect={() => {
                   setSelectedCompanyId(company.id);
-                  if (isInstanceRoute) {
-                    navigate(`/${company.issuePrefix}/dashboard`);
-                  }
+                  navigate(`/${company.issuePrefix}/dashboard`);
                 }}
               />
             ))}
