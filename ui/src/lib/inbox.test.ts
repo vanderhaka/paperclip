@@ -18,12 +18,14 @@ import {
   getArchivedInboxSearchIssues,
   getAvailableInboxIssueColumns,
   getApprovalsForTab,
+  getHiddenHireWorkItemsCount,
   getInboxWorkItems,
   getInboxKeyboardSelectionIndex,
   getInboxSearchSupplementIssues,
   getRecentTouchedIssues,
   getUnreadTouchedIssues,
   groupInboxWorkItems,
+  filterHireInboxItems,
   isInboxEntityDismissed,
   isMineInboxTab,
   loadInboxFilterPreferences,
@@ -487,6 +489,28 @@ describe("inbox helpers", () => {
     ]);
   });
 
+  it("hides hire approvals and join requests by default helper", () => {
+    const issue = makeIssue("1", true);
+    const hireApproval = makeApprovalWithTimestamps("approval-hire", "pending", "2026-03-11T03:00:00.000Z");
+    const strategyApproval = {
+      ...makeApprovalWithTimestamps("approval-strategy", "pending", "2026-03-11T02:00:00.000Z"),
+      type: "approve_ceo_strategy" as const,
+    };
+    const joinRequest = makeJoinRequest("join-1");
+    const items = getInboxWorkItems({
+      issues: [issue],
+      approvals: [hireApproval, strategyApproval],
+      joinRequests: [joinRequest],
+    });
+
+    expect(getHiddenHireWorkItemsCount(items)).toBe(2);
+    expect(filterHireInboxItems(items, true).map((item) => item.kind === "approval" ? item.approval.id : item.kind)).toEqual([
+      "approval-strategy",
+      "issue",
+    ]);
+    expect(filterHireInboxItems(items, false)).toHaveLength(items.length);
+  });
+
   it("sorts self-touched issues without external comments by updatedAt", () => {
     const recentSelfTouched = makeIssue("recent", false);
     recentSelfTouched.lastExternalCommentAt = null as unknown as Date;
@@ -683,6 +707,7 @@ describe("inbox helpers", () => {
     saveInboxFilterPreferences("company-1", {
       allCategoryFilter: "approvals",
       allApprovalFilter: "resolved",
+      hideHires: false,
       issueFilters: {
         statuses: ["todo"],
         priorities: ["high"],
@@ -696,6 +721,7 @@ describe("inbox helpers", () => {
     saveInboxFilterPreferences("company-2", {
       allCategoryFilter: "failed_runs",
       allApprovalFilter: "actionable",
+      hideHires: true,
       issueFilters: {
         statuses: ["done"],
         priorities: [],
@@ -710,6 +736,7 @@ describe("inbox helpers", () => {
     expect(loadInboxFilterPreferences("company-1")).toEqual({
       allCategoryFilter: "approvals",
       allApprovalFilter: "resolved",
+      hideHires: false,
       issueFilters: {
         statuses: ["todo"],
         priorities: ["high"],
@@ -723,6 +750,7 @@ describe("inbox helpers", () => {
     expect(loadInboxFilterPreferences("company-2")).toEqual({
       allCategoryFilter: "failed_runs",
       allApprovalFilter: "actionable",
+      hideHires: true,
       issueFilters: {
         statuses: ["done"],
         priorities: [],
@@ -753,6 +781,7 @@ describe("inbox helpers", () => {
     expect(loadInboxFilterPreferences("company-1")).toEqual({
       allCategoryFilter: "everything",
       allApprovalFilter: "all",
+      hideHires: true,
       issueFilters: {
         statuses: ["todo"],
         priorities: [],

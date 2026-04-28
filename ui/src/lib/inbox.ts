@@ -28,6 +28,7 @@ export type InboxCategoryFilter =
   | "everything"
   | "issues_i_touched"
   | "join_requests"
+  | "hires"
   | "approvals"
   | "failed_runs"
   | "alerts";
@@ -49,6 +50,7 @@ export interface InboxFilterPreferences {
   allCategoryFilter: InboxCategoryFilter;
   allApprovalFilter: InboxApprovalFilter;
   issueFilters: IssueFilterState;
+  hideHires: boolean;
 }
 export type InboxWorkItem =
   | {
@@ -91,6 +93,7 @@ const defaultInboxFilterPreferences: InboxFilterPreferences = {
   allCategoryFilter: "everything",
   allApprovalFilter: "all",
   issueFilters: defaultIssueFilterState,
+  hideHires: true,
 };
 
 function normalizeStringArray(value: unknown): string[] {
@@ -115,6 +118,7 @@ function normalizeIssueFilterState(value: unknown): IssueFilterState {
 function normalizeInboxCategoryFilter(value: unknown): InboxCategoryFilter {
   return value === "issues_i_touched"
     || value === "join_requests"
+    || value === "hires"
     || value === "approvals"
     || value === "failed_runs"
     || value === "alerts"
@@ -155,6 +159,7 @@ export function loadInboxFilterPreferences(
       allCategoryFilter: normalizeInboxCategoryFilter(parsed.allCategoryFilter),
       allApprovalFilter: normalizeInboxApprovalFilter(parsed.allApprovalFilter),
       issueFilters: normalizeIssueFilterState(parsed.issueFilters),
+      hideHires: parsed.hideHires !== false,
     };
   } catch {
     return {
@@ -178,6 +183,7 @@ export function saveInboxFilterPreferences(
         allCategoryFilter: normalizeInboxCategoryFilter(preferences.allCategoryFilter),
         allApprovalFilter: normalizeInboxApprovalFilter(preferences.allApprovalFilter),
         issueFilters: normalizeIssueFilterState(preferences.issueFilters),
+        hideHires: preferences.hideHires !== false,
       }),
     );
   } catch {
@@ -219,6 +225,20 @@ export function isInboxEntityDismissed(
   const dismissedAt = dismissedAtByKey.get(itemKey);
   if (dismissedAt == null) return false;
   return dismissedAt >= normalizeTimestamp(activityAt);
+}
+
+export function isHireInboxItem(item: InboxWorkItem): boolean {
+  if (item.kind === "join_request") return true;
+  return item.kind === "approval" && item.approval.type === "hire_agent";
+}
+
+export function filterHireInboxItems(items: InboxWorkItem[], hideHires: boolean): InboxWorkItem[] {
+  if (!hideHires) return items;
+  return items.filter((item) => !isHireInboxItem(item));
+}
+
+export function getHiddenHireWorkItemsCount(items: InboxWorkItem[]): number {
+  return items.filter(isHireInboxItem).length;
 }
 
 export function loadReadInboxItems(): Set<string> {

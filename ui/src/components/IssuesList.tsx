@@ -240,11 +240,13 @@ function IssueTriggerExplanationPill({
       title={reason}
     >
       <TimerOff className="h-3 w-3" aria-hidden="true" />
-      {reason.replace(/^Not triggered:\s*/i, "")}
+      <span className="max-w-[7rem] truncate sm:max-w-none">
+        {reason.replace(/^Not triggered:\s*/i, "")}
+      </span>
       {canRetrigger ? (
         <button
           type="button"
-          className="ml-1 rounded-sm border border-amber-500/30 px-1 py-0 text-[10px] font-semibold uppercase tracking-wide transition-colors hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-full border border-amber-500/40 bg-background/40 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide transition-colors hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isRetriggering}
           onClick={(event) => {
             event.preventDefault();
@@ -252,7 +254,7 @@ function IssueTriggerExplanationPill({
             onRetrigger?.();
           }}
         >
-          {isRetriggering ? "Waking" : "Retrigger"}
+          {isRetriggering ? "..." : <><span className="sm:hidden">Wake</span><span className="hidden sm:inline">Retrigger</span></>}
         </button>
       ) : null}
     </span>

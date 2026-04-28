@@ -84,8 +84,10 @@ import {
   MessageSquare,
   MoreHorizontal,
   Paperclip,
+  Play,
   Repeat,
   SlidersHorizontal,
+  TimerOff,
   Trash2,
 } from "lucide-react";
 import {
@@ -390,6 +392,7 @@ export function IssueDetail() {
   const [optimisticComments, setOptimisticComments] = useState<OptimisticIssueComment[]>([]);
   const [pendingCommentComposerFocusKey, setPendingCommentComposerFocusKey] = useState(0);
   const [issueChatInitialTranscriptReady, setIssueChatInitialTranscriptReady] = useState(false);
+  const [retriggeringIssue, setRetriggeringIssue] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const lastMarkedReadIssueIdRef = useRef<string | null>(null);
   const commentComposerRef = useRef<IssueChatComposerHandle | null>(null);
@@ -601,6 +604,37 @@ export function IssueDetail() {
     for (const a of agents ?? []) map.set(a.id, a);
     return map;
   }, [agents]);
+  const assignedIssueAgent = issue?.assigneeAgentId
+    ? agentMap.get(issue.assigneeAgentId) ?? null
+    : null;
+  const issueRetriggerReason = (() => {
+    if (!issue || hasLiveRuns) return null;
+    if (issue.status === "done" || issue.status === "cancelled") return null;
+    if (issue.status === "backlog") return "This issue is in backlog, so Paperclip will not wake an agent.";
+    if (issue.status === "blocked") return "This issue is blocked, so queued execution is held.";
+    if (!issue.assigneeAgentId) {
+      return issue.assigneeUserId
+        ? "This issue is assigned to a board user, not an agent."
+        : "This issue has no assigned agent.";
+    }
+    if (assignedIssueAgent?.status === "paused") return "The assigned agent is paused.";
+    if (assignedIssueAgent?.status === "pending_approval") return "The assigned agent is still pending approval.";
+    if (assignedIssueAgent?.status === "terminated") return "The assigned agent has been terminated.";
+    return "This assigned issue has no live run right now.";
+  })();
+  const canRetriggerIssue = Boolean(
+    issue &&
+    issue.assigneeAgentId &&
+    issue.status !== "done" &&
+    issue.status !== "cancelled" &&
+    issue.status !== "backlog" &&
+    issue.status !== "blocked" &&
+    assignedIssueAgent?.status !== "paused" &&
+    assignedIssueAgent?.status !== "pending_approval" &&
+    assignedIssueAgent?.status !== "terminated" &&
+    !hasLiveRuns,
+  );
+  const issueAssigneeName = assignedIssueAgent?.name ?? null;
   const transcriptRuns = useMemo(
     () =>
       resolveIssueChatTranscriptRuns({
@@ -837,6 +871,59 @@ export function IssueDetail() {
       queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(selectedCompanyId) });
     }
   }, [queryClient, selectedCompanyId]);
+
+  const retriggerIssue = useCallback(async () => {
+    if (!issue || !issue.assigneeAgentId || !selectedCompanyId || retriggeringIssue || !canRetriggerIssue) return;
+    setRetriggeringIssue(true);
+    try {
+      const response = await agentsApi.wakeup(issue.assigneeAgentId, {
+        source: "on_demand",
+        triggerDetail: "manual",
+        reason: "issue_retriggered",
+        payload: {
+          issueId: issue.id,
+          mutation: "manual_retrigger",
+        },
+        idempotencyKey: `issue-retrigger:${issue.id}:${Date.now()}`,
+      }, selectedCompanyId);
+      if (response.status === "skipped") {
+        pushToast({
+          title: "Wake skipped",
+          body: response.message ?? response.reason,
+          tone: "warn",
+        });
+      } else {
+        pushToast({
+          title: "Task retriggered",
+          body: `${issue.identifier ?? "Issue"} was queued for its assignee.`,
+          tone: "success",
+        });
+      }
+      invalidateIssueRunState();
+      invalidateIssueCollections();
+      if (selectedCompanyId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(selectedCompanyId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(selectedCompanyId) });
+      }
+    } catch (error) {
+      pushToast({
+        title: "Retrigger failed",
+        body: error instanceof Error ? error.message : "Paperclip could not wake the assignee.",
+        tone: "error",
+      });
+    } finally {
+      setRetriggeringIssue(false);
+    }
+  }, [
+    canRetriggerIssue,
+    invalidateIssueCollections,
+    invalidateIssueRunState,
+    issue,
+    pushToast,
+    queryClient,
+    retriggeringIssue,
+    selectedCompanyId,
+  ]);
 
   const applyOptimisticIssueCacheUpdate = useCallback((refs: Iterable<string>, data: Record<string, unknown>) => {
     queryClient.setQueriesData<Issue>(
@@ -1846,6 +1933,33 @@ export function IssueDetail() {
         className="flex flex-wrap gap-2"
         itemClassName="inline-flex"
       />
+
+      {canRetriggerIssue ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-900 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-2">
+            <TimerOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              <div className="font-medium">Task is not currently running</div>
+              <div className="text-xs text-amber-800/80 dark:text-amber-200/75">
+                {issueRetriggerReason}. Wake {issueAssigneeName ?? "the assigned agent"} to try this task again.
+              </div>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={retriggeringIssue}
+            onClick={() => {
+              void retriggerIssue();
+            }}
+            className="w-full shrink-0 border-amber-500/40 bg-background/50 shadow-none hover:bg-amber-500/10 sm:w-auto"
+          >
+            <Play className="h-3.5 w-3.5 sm:mr-1.5" aria-hidden="true" />
+            <span>{retriggeringIssue ? "Waking..." : "Retrigger task"}</span>
+          </Button>
+        </div>
+      ) : null}
 
       <section className="flex h-[calc(100dvh-15.5rem)] min-h-[400px] max-h-[720px] flex-col overflow-hidden rounded-lg border border-border bg-card/40">
         <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">

@@ -96,11 +96,13 @@ import {
   getAvailableInboxIssueColumns,
   getApprovalsForTab,
   getArchivedInboxSearchIssues,
+  getHiddenHireWorkItemsCount,
   getInboxWorkItems,
   getInboxKeyboardSelectionIndex,
   getInboxSearchSupplementIssues,
   getLatestFailedRunsByAgent,
   matchesInboxIssueSearch,
+  filterHireInboxItems,
   getRecentTouchedIssues,
   groupInboxWorkItems,
   isInboxEntityDismissed,
@@ -654,7 +656,8 @@ export function Inbox() {
   const { dismissed: dismissedAlerts, dismiss: dismissAlert } = useDismissedInboxAlerts();
   const { dismissedAtByKey, dismiss: dismissInboxItem } = useInboxDismissals(selectedCompanyId);
   const { readItems, markRead: markItemRead, markUnread: markItemUnread } = useReadInboxItems();
-  const { allCategoryFilter, allApprovalFilter, issueFilters } = filterPreferences;
+  const { allCategoryFilter, allApprovalFilter, hideHires, issueFilters } = filterPreferences;
+  const showHires = !hideHires;
 
   const pathSegment = location.pathname.split("/").pop() ?? "mine";
   const tab: InboxTab =
@@ -910,9 +913,9 @@ export function Inbox() {
   }, [liveRuns]);
 
   const approvalsToRender = useMemo(() => {
-    let filtered = getApprovalsForTab(approvals ?? [], tab, allApprovalFilter);
+    const filtered = getApprovalsForTab(approvals ?? [], tab, allApprovalFilter);
     if (tab === "mine") {
-      filtered = filtered.filter(
+      return filtered.filter(
         (a) => !isInboxEntityDismissed(dismissedAtByKey, `approval:${a.id}`, a.updatedAt),
       );
     }
@@ -942,15 +945,22 @@ export function Inbox() {
     return joinRequests;
   }, [joinRequests, tab, showJoinRequestsCategory, dismissedAtByKey]);
 
-  const workItemsToRender = useMemo(
-    () =>
-      getInboxWorkItems({
-        issues: tab === "all" && !showTouchedCategory ? [] : issuesToRender,
-        approvals: tab === "all" && !showApprovalsCategory ? [] : approvalsToRender,
-        failedRuns: failedRunsForTab,
-        joinRequests: joinRequestsForTab,
-      }),
+  const rawWorkItemsToRender = useMemo(
+    () => getInboxWorkItems({
+      issues: tab === "all" && !showTouchedCategory ? [] : issuesToRender,
+      approvals: tab === "all" && !showApprovalsCategory ? [] : approvalsToRender,
+      failedRuns: failedRunsForTab,
+      joinRequests: joinRequestsForTab,
+    }),
     [approvalsToRender, issuesToRender, showApprovalsCategory, showTouchedCategory, tab, failedRunsForTab, joinRequestsForTab],
+  );
+  const workItemsToRender = useMemo(
+    () => filterHireInboxItems(rawWorkItemsToRender, showHires),
+    [rawWorkItemsToRender, showHires],
+  );
+  const hiddenHireCount = useMemo(
+    () => getHiddenHireWorkItemsCount(rawWorkItemsToRender),
+    [rawWorkItemsToRender],
   );
 
   const filteredWorkItems = useMemo(() => {
@@ -1216,6 +1226,9 @@ export function Inbox() {
   }, [updateFilterPreferences]);
   const updateAllApprovalFilter = useCallback((value: InboxApprovalFilter) => {
     updateFilterPreferences((previous) => ({ ...previous, allApprovalFilter: value }));
+  }, [updateFilterPreferences]);
+  const toggleHideHires = useCallback(() => {
+    updateFilterPreferences((previous) => ({ ...previous, hideHires: !previous.hideHires }));
   }, [updateFilterPreferences]);
   const updateGroupBy = useCallback((nextGroupBy: InboxWorkItemGroupBy) => {
     setGroupBy(nextGroupBy);
@@ -1911,6 +1924,7 @@ export function Inbox() {
               <SelectItem value="issues_i_touched">My recent issues</SelectItem>
               <SelectItem value="join_requests">Join requests</SelectItem>
               <SelectItem value="approvals">Approvals</SelectItem>
+                <SelectItem value="hires">Hires</SelectItem>
               <SelectItem value="failed_runs">Failed runs</SelectItem>
               <SelectItem value="alerts">Alerts</SelectItem>
             </SelectContent>
@@ -1931,6 +1945,18 @@ export function Inbox() {
               </SelectContent>
             </Select>
           )}
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn("h-8 text-xs", !hideHires && "bg-accent")}
+            onClick={toggleHideHires}
+            title={hideHires ? "Show hidden hire requests" : "Hide hire requests"}
+          >
+            {hideHires ? "Show hires" : "Hide hires"}
+            {hideHires && hiddenHireCount > 0 ? ` (${hiddenHireCount})` : ""}
+          </Button>
         </div>
       )}
 
