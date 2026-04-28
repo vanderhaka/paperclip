@@ -1,7 +1,9 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
+import { useToast } from "../context/ToastContext";
+import { agentsApi } from "../api/agents";
 import { executionWorkspacesApi } from "../api/execution-workspaces";
 import { issuesApi } from "../api/issues";
 import { authApi } from "../api/auth";
@@ -217,10 +219,20 @@ function issueTriggerExplanation(issue: Issue, agents?: Agent[], isLive?: boolea
   if (assignee?.status === "paused") return "Not triggered: agent paused";
   if (assignee?.status === "pending_approval") return "Not triggered: agent pending approval";
   if (assignee?.status === "terminated") return "Not triggered: agent terminated";
-  return null;
+  return "Not triggered: idle";
 }
 
-function IssueTriggerExplanationPill({ reason }: { reason: string | null }) {
+function IssueTriggerExplanationPill({
+  canRetrigger,
+  isRetriggering,
+  onRetrigger,
+  reason,
+}: {
+  canRetrigger: boolean;
+  isRetriggering: boolean;
+  onRetrigger?: () => void;
+  reason: string | null;
+}) {
   if (!reason) return null;
   return (
     <span
@@ -229,6 +241,20 @@ function IssueTriggerExplanationPill({ reason }: { reason: string | null }) {
     >
       <TimerOff className="h-3 w-3" aria-hidden="true" />
       {reason.replace(/^Not triggered:\s*/i, "")}
+      {canRetrigger ? (
+        <button
+          type="button"
+          className="ml-1 rounded-sm border border-amber-500/30 px-1 py-0 text-[10px] font-semibold uppercase tracking-wide transition-colors hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isRetriggering}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onRetrigger?.();
+          }}
+        >
+          {isRetriggering ? "Waking" : "Retrigger"}
+        </button>
+      ) : null}
     </span>
   );
 }
@@ -252,6 +278,8 @@ export function IssuesList({
 }: IssuesListProps) {
   const { selectedCompanyId } = useCompany();
   const { openNewIssue } = useDialog();
+  const { pushToast } = useToast();
+  const queryClient = useQueryClient();
   const { data: session } = useQuery({
     queryKey: queryKeys.auth.session,
     queryFn: () => authApi.getSession(),
@@ -277,6 +305,7 @@ export function IssuesList({
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const [issueSearch, setIssueSearch] = useState(initialSearch ?? "");
   const [visibleIssueColumns, setVisibleIssueColumns] = useState<InboxIssueColumn[]>(loadInboxIssueColumns);
+  const [retriggeringIssueId, setRetriggeringIssueId] = useState<string | null>(null);
   const deferredIssueSearch = useDeferredValue(issueSearch);
   const normalizedIssueSearch = deferredIssueSearch.trim().toLowerCase();
 
@@ -556,6 +585,50 @@ export function IssuesList({
     setAssigneeSearch("");
   }, [onUpdateIssue]);
 
+  const retriggerIssue = useCallback(async (issue: Issue) => {
+    if (!selectedCompanyId || !issue.assigneeAgentId || retriggeringIssueId) return;
+    setRetriggeringIssueId(issue.id);
+    try {
+      const response = await agentsApi.wakeup(issue.assigneeAgentId, {
+        source: "on_demand",
+        triggerDetail: "manual",
+        reason: "issue_retriggered",
+        payload: {
+          issueId: issue.id,
+          mutation: "manual_retrigger",
+        },
+        idempotencyKey: `issue-retrigger:${issue.id}:${Date.now()}`,
+      }, selectedCompanyId);
+      if (response.status === "skipped") {
+        pushToast({
+          title: "Wake skipped",
+          body: response.message ?? response.reason,
+          tone: "warn",
+        });
+      } else {
+        pushToast({
+          title: "Task retriggered",
+          body: `${issue.identifier ?? "Issue"} was queued for its assignee.`,
+          tone: "success",
+        });
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(selectedCompanyId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.issues.liveRuns(issue.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.issues.activeRun(issue.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(selectedCompanyId) }),
+      ]);
+    } catch (error) {
+      pushToast({
+        title: "Retrigger failed",
+        body: error instanceof Error ? error.message : "Paperclip could not wake the assignee.",
+        tone: "error",
+      });
+    } finally {
+      setRetriggeringIssueId(null);
+    }
+  }, [pushToast, queryClient, retriggeringIssueId, selectedCompanyId]);
+
 
   return (
     <div className="space-y-4">
@@ -788,6 +861,16 @@ export function IssuesList({
                     agents,
                     liveIssueIds?.has(issue.id) === true,
                   );
+                  const assignee = issue.assigneeAgentId
+                    ? agents?.find((agent) => agent.id === issue.assigneeAgentId) ?? null
+                    : null;
+                  const canRetrigger =
+                    Boolean(issue.assigneeAgentId) &&
+                    !["backlog", "blocked", "done", "cancelled"].includes(issue.status) &&
+                    assignee?.status !== "paused" &&
+                    assignee?.status !== "pending_approval" &&
+                    assignee?.status !== "terminated" &&
+                    liveIssueIds?.has(issue.id) !== true;
                   const toggleCollapse = (e: { preventDefault: () => void; stopPropagation: () => void }) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -805,7 +888,12 @@ export function IssuesList({
                         issueLinkState={issueLinkState}
                         titleSuffix={(
                           <>
-                            <IssueTriggerExplanationPill reason={triggerExplanation} />
+                            <IssueTriggerExplanationPill
+                              canRetrigger={canRetrigger}
+                              isRetriggering={retriggeringIssueId === issue.id}
+                              onRetrigger={() => retriggerIssue(issue)}
+                              reason={triggerExplanation}
+                            />
                             {hasChildren && !isExpanded ? (
                               <span className="ml-1.5 text-xs text-muted-foreground">
                                 ({totalDescendants} sub-task{totalDescendants !== 1 ? "s" : ""})

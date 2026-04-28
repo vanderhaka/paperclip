@@ -22,8 +22,16 @@ const mockIssuesApi = vi.hoisted(() => ({
   listLabels: vi.fn(),
 }));
 
+const mockAgentsApi = vi.hoisted(() => ({
+  wakeup: vi.fn(),
+}));
+
 const mockAuthApi = vi.hoisted(() => ({
   getSession: vi.fn(),
+}));
+
+const toastState = vi.hoisted(() => ({
+  pushToast: vi.fn(),
 }));
 
 const mockExecutionWorkspacesApi = vi.hoisted(() => ({
@@ -46,8 +54,16 @@ vi.mock("../api/issues", () => ({
   issuesApi: mockIssuesApi,
 }));
 
+vi.mock("../api/agents", () => ({
+  agentsApi: mockAgentsApi,
+}));
+
 vi.mock("../api/auth", () => ({
   authApi: mockAuthApi,
+}));
+
+vi.mock("../context/ToastContext", () => ({
+  useToast: () => toastState,
 }));
 
 vi.mock("../api/execution-workspaces", () => ({
@@ -343,6 +359,56 @@ describe("IssuesList", () => {
       expect(container.textContent).toContain("Needs owner");
       expect(container.textContent).toContain("no agent");
     });
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("re-wakes an assigned open issue from the trigger explanation", async () => {
+    const assignedIssue = createIssue({
+      id: "issue-assigned",
+      identifier: "PAP-11",
+      title: "Wake me",
+      status: "todo",
+      assigneeAgentId: "agent-1",
+    });
+
+    const { root } = renderWithQueryClient(
+      <IssuesList
+        issues={[assignedIssue]}
+        agents={[{ id: "agent-1", name: "CEO", role: "ceo", status: "active" }]}
+        projects={[]}
+        liveIssueIds={new Set()}
+        viewStateKey="paperclip:test-issues"
+        onUpdateIssue={() => undefined}
+      />,
+      container,
+    );
+
+    let retriggerButton: HTMLButtonElement | undefined;
+    await waitForAssertion(() => {
+      retriggerButton = Array.from(container.querySelectorAll("button")).find(
+        (candidate) => candidate.textContent?.includes("Retrigger"),
+      ) as HTMLButtonElement | undefined;
+      expect(retriggerButton).not.toBeUndefined();
+    });
+
+    await act(async () => {
+      retriggerButton!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+
+    expect(mockAgentsApi.wakeup).toHaveBeenCalledWith(
+      "agent-1",
+      expect.objectContaining({
+        source: "on_demand",
+        triggerDetail: "manual",
+        reason: "issue_retriggered",
+        payload: { issueId: "issue-assigned", mutation: "manual_retrigger" },
+      }),
+      "company-1",
+    );
 
     act(() => {
       root.unmount();
