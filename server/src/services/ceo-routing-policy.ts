@@ -4,14 +4,17 @@ import { agents, companies } from "@paperclipai/db";
 import { conflict } from "../errors.js";
 
 const CEO_ROUTING_COMPANY_PREFIXES = new Set(["JARA"]);
+const CEO_ROUTING_COMPANY_NAMES = new Set(["JARVE"]);
 const INACTIVE_AGENT_STATUSES = ["pending_approval", "terminated"] as const;
 
 export const AUTO_CEO_APPROVER_USER_ID = "system:auto-ceo";
 
-type CompanyPolicyRow = Pick<typeof companies.$inferSelect, "issuePrefix"> | null | undefined;
+type CompanyPolicyRow = Pick<typeof companies.$inferSelect, "issuePrefix" | "name"> | null | undefined;
 
 export function shouldApplyCeoRoutingPolicy(company: CompanyPolicyRow): boolean {
-  return Boolean(company && CEO_ROUTING_COMPANY_PREFIXES.has(company.issuePrefix));
+  if (!company) return false;
+  const normalizedName = company.name.trim().toUpperCase();
+  return CEO_ROUTING_COMPANY_PREFIXES.has(company.issuePrefix) || CEO_ROUTING_COMPANY_NAMES.has(normalizedName);
 }
 
 export function isCeoCandidate(agent: Pick<typeof agents.$inferSelect, "name" | "role" | "status">): boolean {
@@ -21,7 +24,7 @@ export function isCeoCandidate(agent: Pick<typeof agents.$inferSelect, "name" | 
 
 async function getCompanyPolicy(db: Db, companyId: string) {
   return db
-    .select({ issuePrefix: companies.issuePrefix })
+    .select({ issuePrefix: companies.issuePrefix, name: companies.name })
     .from(companies)
     .where(eq(companies.id, companyId))
     .then((rows) => rows[0] ?? null);

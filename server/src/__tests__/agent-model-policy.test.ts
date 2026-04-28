@@ -7,6 +7,7 @@ import {
 } from "../services/agents.js";
 
 const jarve = { name: "JARVE", issuePrefix: "JARA" };
+const newJarveCompany = { name: "JARVE", issuePrefix: "JAR" };
 const otherCompany = { name: "Other", issuePrefix: "OTH" };
 
 describe("employee model policy", () => {
@@ -26,6 +27,35 @@ describe("employee model policy", () => {
       cwd: "/work",
       model: EMPLOYEE_MODEL_POLICY_MODEL,
       thinking: EMPLOYEE_MODEL_POLICY_THINKING,
+    });
+  });
+
+  it("forces newly-created JARVE companies onto DeepSeek V4 via Pi", () => {
+    const result = applyEmployeeModelPolicy(newJarveCompany, {
+      name: "Engineer",
+      role: "engineer",
+      adapterType: "codex_local",
+      adapterConfig: {
+        model: "gpt-5.5",
+      },
+    });
+
+    expect(result.adapterType).toBe(EMPLOYEE_MODEL_POLICY_ADAPTER_TYPE);
+    expect(result.adapterConfig).toMatchObject({
+      model: EMPLOYEE_MODEL_POLICY_MODEL,
+      thinking: EMPLOYEE_MODEL_POLICY_THINKING,
+    });
+  });
+
+  it("keeps non-JARVE companies with a JAR prefix unchanged", () => {
+    const result = applyEmployeeModelPolicy({ name: "Jar Tools", issuePrefix: "JAR" }, {
+      adapterType: "codex_local",
+      adapterConfig: { model: "gpt-5.5" },
+    });
+
+    expect(result).toEqual({
+      adapterType: "codex_local",
+      adapterConfig: { model: "gpt-5.5" },
     });
   });
 

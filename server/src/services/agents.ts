@@ -54,6 +54,7 @@ export const EMPLOYEE_MODEL_POLICY_ADAPTER_TYPE = "pi_local";
 export const EMPLOYEE_MODEL_POLICY_MODEL = DEFAULT_PI_LOCAL_MODEL;
 export const EMPLOYEE_MODEL_POLICY_THINKING = "medium";
 const DEEPSEEK_V4_POLICY_COMPANY_PREFIXES = new Set(["JARA"]);
+const DEEPSEEK_V4_POLICY_COMPANY_NAMES = new Set(["JARVE"]);
 
 interface RevisionMetadata {
   createdByAgentId?: string | null;
@@ -82,7 +83,11 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 
 export function shouldEnforceEmployeeModelPolicy(company: AgentPolicyCompany | null | undefined): boolean {
   if (!company) return false;
-  return DEEPSEEK_V4_POLICY_COMPANY_PREFIXES.has(company.issuePrefix);
+  const normalizedName = company.name.trim().toUpperCase();
+  return (
+    DEEPSEEK_V4_POLICY_COMPANY_PREFIXES.has(company.issuePrefix)
+    || DEEPSEEK_V4_POLICY_COMPANY_NAMES.has(normalizedName)
+  );
 }
 
 function isEmployeeModelPolicyCompliant(existing: AgentPolicyExisting | null | undefined): boolean {

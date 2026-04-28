@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { isCeoCandidate, shouldApplyCeoRoutingPolicy } from "../services/ceo-routing-policy.js";
 
 describe("CEO routing policy", () => {
-  it("applies only to the JARVE company prefix", () => {
-    expect(shouldApplyCeoRoutingPolicy({ issuePrefix: "JARA" })).toBe(true);
-    expect(shouldApplyCeoRoutingPolicy({ issuePrefix: "OPS" })).toBe(false);
+  it("applies to legacy JARVE prefix and newly-created JARVE names", () => {
+    expect(shouldApplyCeoRoutingPolicy({ issuePrefix: "JARA", name: "Legacy" })).toBe(true);
+    expect(shouldApplyCeoRoutingPolicy({ issuePrefix: "JAR", name: "JARVE" })).toBe(true);
+    expect(shouldApplyCeoRoutingPolicy({ issuePrefix: "JAR", name: " jarve " })).toBe(true);
+    expect(shouldApplyCeoRoutingPolicy({ issuePrefix: "JAR", name: "Jar Ventures" })).toBe(false);
+    expect(shouldApplyCeoRoutingPolicy({ issuePrefix: "OPS", name: "Ops" })).toBe(false);
     expect(shouldApplyCeoRoutingPolicy(null)).toBe(false);
   });
 
