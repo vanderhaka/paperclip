@@ -50,7 +50,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { CircleDot, Plus, ArrowUpDown, Layers, Check, ChevronRight, List, Columns3, User, Search } from "lucide-react";
+import { CircleDot, Plus, ArrowUpDown, Layers, Check, ChevronRight, List, Columns3, User, Search, TimerOff } from "lucide-react";
 import { KanbanBoard } from "./KanbanBoard";
 import { buildIssueTree, countDescendants } from "../lib/issue-tree";
 import type { Issue, Project } from "@paperclipai/shared";
@@ -115,6 +115,8 @@ function sortIssues(issues: Issue[], state: IssueViewState): Issue[] {
 interface Agent {
   id: string;
   name: string;
+  role?: string | null;
+  status?: string | null;
 }
 
 type ProjectOption = Pick<Project, "id" | "name"> & Partial<Pick<Project, "color" | "workspaces" | "executionWorkspacePolicy" | "primaryWorkspace">>;
@@ -198,6 +200,36 @@ function IssueSearchInput({
         data-page-search-target="true"
       />
     </div>
+  );
+}
+
+function issueTriggerExplanation(issue: Issue, agents?: Agent[], isLive?: boolean): string | null {
+  if (isLive) return null;
+  if (issue.status === "done" || issue.status === "cancelled") return null;
+  if (issue.status === "backlog") return "Not triggered: backlog";
+  if (issue.status === "blocked") return "Not triggered: blocked";
+  if (!issue.assigneeAgentId) {
+    if (issue.assigneeUserId) return "Not triggered: assigned to board";
+    return "Not triggered: no agent";
+  }
+
+  const assignee = agents?.find((agent) => agent.id === issue.assigneeAgentId);
+  if (assignee?.status === "paused") return "Not triggered: agent paused";
+  if (assignee?.status === "pending_approval") return "Not triggered: agent pending approval";
+  if (assignee?.status === "terminated") return "Not triggered: agent terminated";
+  return null;
+}
+
+function IssueTriggerExplanationPill({ reason }: { reason: string | null }) {
+  if (!reason) return null;
+  return (
+    <span
+      className="ml-2 inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 align-middle text-[10px] font-medium text-amber-700 dark:text-amber-300"
+      title={reason}
+    >
+      <TimerOff className="h-3 w-3" aria-hidden="true" />
+      {reason.replace(/^Not triggered:\s*/i, "")}
+    </span>
   );
 }
 
@@ -751,6 +783,11 @@ export function IssuesList({
                   const isExpanded = !viewState.collapsedParents.includes(issue.id);
                   const issueProject = issue.projectId ? projectById.get(issue.projectId) ?? null : null;
                   const parentIssue = issue.parentId ? issueById.get(issue.parentId) ?? null : null;
+                  const triggerExplanation = issueTriggerExplanation(
+                    issue,
+                    agents,
+                    liveIssueIds?.has(issue.id) === true,
+                  );
                   const toggleCollapse = (e: { preventDefault: () => void; stopPropagation: () => void }) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -766,11 +803,16 @@ export function IssuesList({
                       <IssueRow
                         issue={issue}
                         issueLinkState={issueLinkState}
-                        titleSuffix={hasChildren && !isExpanded ? (
-                          <span className="ml-1.5 text-xs text-muted-foreground">
-                            ({totalDescendants} sub-task{totalDescendants !== 1 ? "s" : ""})
-                          </span>
-                        ) : undefined}
+                        titleSuffix={(
+                          <>
+                            <IssueTriggerExplanationPill reason={triggerExplanation} />
+                            {hasChildren && !isExpanded ? (
+                              <span className="ml-1.5 text-xs text-muted-foreground">
+                                ({totalDescendants} sub-task{totalDescendants !== 1 ? "s" : ""})
+                              </span>
+                            ) : null}
+                          </>
+                        )}
                         mobileLeading={
                           hasChildren ? (
                             <button type="button" onClick={toggleCollapse}>

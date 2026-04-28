@@ -163,13 +163,15 @@ vi.mock("./InlineEntitySelector", async () => {
       HTMLButtonElement,
       {
         value: string;
+        options?: Array<{ id: string; label: string }>;
         placeholder?: string;
         renderTriggerValue?: (option: { id: string; label: string } | null) => ReactNode;
       }
-    >(function InlineEntitySelectorMock({ value, placeholder, renderTriggerValue }, ref) {
+    >(function InlineEntitySelectorMock({ value, options = [], placeholder, renderTriggerValue }, ref) {
+      const option = value ? options.find((entry) => entry.id === value) ?? { id: value, label: value } : null;
       return (
         <button ref={ref} type="button">
-          {(renderTriggerValue?.(value ? { id: value, label: value } : null) ?? value) || placeholder}
+          {(renderTriggerValue?.(option) ?? option?.label) || placeholder}
         </button>
       );
     }),
@@ -426,6 +428,69 @@ describe("NewIssueDialog", () => {
             thinking: "low",
           },
         },
+      }),
+    );
+
+    act(() => root.unmount());
+  });
+
+  it("defaults a new top-level task to the CEO when no assignee is provided", async () => {
+    mockAgentsApi.list.mockResolvedValue([
+      {
+        id: "agent-ceo",
+        name: "CEO",
+        role: "ceo",
+        title: "CEO",
+        status: "active",
+        adapterType: "claude_local",
+        icon: null,
+      },
+      {
+        id: "agent-eng",
+        name: "Engineer",
+        role: "engineer",
+        title: "Engineer",
+        status: "active",
+        adapterType: "claude_local",
+        icon: null,
+      },
+    ]);
+
+    window.localStorage.setItem("paperclip:issue-draft", JSON.stringify({
+      title: "Hire agents",
+      description: "",
+      status: "todo",
+      priority: "",
+      assigneeValue: "",
+      reviewerValue: "",
+      approverValue: "",
+      projectId: "",
+      projectWorkspaceId: "",
+      assigneeModelOverride: "",
+      assigneeThinkingEffort: "",
+      assigneeChrome: false,
+    }));
+
+    const { root } = renderDialog(container);
+    await flush();
+    await flush();
+
+    expect(container.textContent).toContain("CEO");
+
+    const submitButton = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Create Issue"));
+    expect(submitButton).not.toBeUndefined();
+
+    await act(async () => {
+      submitButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+
+    expect(mockIssuesApi.create).toHaveBeenCalledWith(
+      "company-1",
+      expect.objectContaining({
+        title: "Hire agents",
+        assigneeAgentId: "agent-ceo",
       }),
     );
 

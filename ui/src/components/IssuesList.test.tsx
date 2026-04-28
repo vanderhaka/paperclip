@@ -61,15 +61,18 @@ vi.mock("../api/instanceSettings", () => ({
 vi.mock("./IssueRow", () => ({
   IssueRow: ({
     issue,
+    titleSuffix,
     desktopMetaLeading,
     desktopTrailing,
   }: {
     issue: Issue;
+    titleSuffix?: ReactNode;
     desktopMetaLeading?: ReactNode;
     desktopTrailing?: ReactNode;
   }) => (
     <div data-testid="issue-row">
       <span>{issue.title}</span>
+      {titleSuffix}
       {desktopMetaLeading}
       {desktopTrailing}
     </div>
@@ -307,6 +310,38 @@ describe("IssuesList", () => {
       expect(container.textContent).toContain("PAP-9");
       expect(container.textContent).toContain("Agent One");
       expect(container.textContent).not.toContain("Updated");
+    });
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("shows why an open issue is not triggered", async () => {
+    localStorage.setItem("paperclip:inbox:issue-columns", JSON.stringify(["id"]));
+    const unassignedIssue = createIssue({
+      id: "issue-unassigned",
+      identifier: "PAP-10",
+      title: "Needs owner",
+      status: "todo",
+      assigneeAgentId: null,
+    });
+
+    const { root } = renderWithQueryClient(
+      <IssuesList
+        issues={[unassignedIssue]}
+        agents={[]}
+        projects={[]}
+        liveIssueIds={new Set()}
+        viewStateKey="paperclip:test-issues"
+        onUpdateIssue={() => undefined}
+      />,
+      container,
+    );
+
+    await waitForAssertion(() => {
+      expect(container.textContent).toContain("Needs owner");
+      expect(container.textContent).toContain("no agent");
     });
 
     act(() => {

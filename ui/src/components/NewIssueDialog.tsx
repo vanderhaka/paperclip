@@ -332,6 +332,7 @@ export function NewIssueDialog() {
   const stageFileInputRef = useRef<HTMLInputElement | null>(null);
   const assigneeSelectorRef = useRef<HTMLButtonElement | null>(null);
   const projectSelectorRef = useRef<HTMLButtonElement | null>(null);
+  const defaultCeoAssigneeAppliedRef = useRef(false);
 
   const { data: agents } = useQuery({
     queryKey: queryKeys.agents.list(effectiveCompanyId!),
@@ -382,6 +383,17 @@ export function NewIssueDialog() {
   const selectedAssignee = useMemo(() => parseAssigneeValue(assigneeValue), [assigneeValue]);
   const selectedAssigneeAgentId = selectedAssignee.assigneeAgentId;
   const selectedAssigneeUserId = selectedAssignee.assigneeUserId;
+  const defaultCeoAssigneeValue = useMemo(() => {
+    const ceo = (agents ?? []).find((agent) => {
+      if (agent.status === "terminated" || agent.status === "pending_approval" || agent.status === "paused") return false;
+      return agent.role?.toLowerCase() === "ceo" || agent.name.toLowerCase() === "ceo";
+    });
+    return ceo ? assigneeValueFromSelection({ assigneeAgentId: ceo.id }) : "";
+  }, [agents]);
+  const newIssueDefaultAssigneeValue = useMemo(
+    () => assigneeValueFromSelection(newIssueDefaults),
+    [newIssueDefaults],
+  );
 
   const assigneeAdapterType = (agents ?? []).find((agent) => agent.id === selectedAssigneeAgentId)?.adapterType ?? null;
   const supportsAssigneeOverrides = Boolean(
@@ -537,6 +549,7 @@ export function NewIssueDialog() {
     if (!newIssueOpen) return;
     setDialogCompanyId(selectedCompanyId);
     executionWorkspaceDefaultProjectId.current = null;
+    defaultCeoAssigneeAppliedRef.current = false;
 
     const draft = loadDraft();
     if (newIssueDefaults.parentId) {
@@ -553,7 +566,7 @@ export function NewIssueDialog() {
       setPriority(newIssueDefaults.priority ?? "");
       setProjectId(defaultProjectId);
       setProjectWorkspaceId(defaultProjectWorkspaceId);
-      setAssigneeValue(assigneeValueFromSelection(newIssueDefaults));
+      setAssigneeValue(newIssueDefaultAssigneeValue);
       setAssigneeModelOverride("");
       setAssigneeThinkingEffort("");
       setAssigneeChrome(false);
@@ -569,7 +582,7 @@ export function NewIssueDialog() {
       const defaultProject = orderedProjects.find((project) => project.id === defaultProjectId);
       setProjectId(defaultProjectId);
       setProjectWorkspaceId(defaultProjectWorkspaceIdForProject(defaultProject));
-      setAssigneeValue(assigneeValueFromSelection(newIssueDefaults));
+      setAssigneeValue(newIssueDefaultAssigneeValue);
       setReviewerValue("");
       setApproverValue("");
       setShowReviewerRow(false);
@@ -588,8 +601,8 @@ export function NewIssueDialog() {
       setStatus(draft.status || "todo");
       setPriority(draft.priority);
       setAssigneeValue(
-        newIssueDefaults.assigneeAgentId || newIssueDefaults.assigneeUserId
-          ? assigneeValueFromSelection(newIssueDefaults)
+        newIssueDefaultAssigneeValue
+          ? newIssueDefaultAssigneeValue
           : (draft.assigneeValue ?? draft.assigneeId ?? ""),
       );
       setReviewerValue(draft.reviewerValue ?? "");
@@ -614,7 +627,7 @@ export function NewIssueDialog() {
       setPriority(newIssueDefaults.priority ?? "");
       setProjectId(defaultProjectId);
       setProjectWorkspaceId(defaultProjectWorkspaceIdForProject(defaultProject));
-      setAssigneeValue(assigneeValueFromSelection(newIssueDefaults));
+      setAssigneeValue(newIssueDefaultAssigneeValue);
       setReviewerValue("");
       setApproverValue("");
       setShowReviewerRow(false);
@@ -626,7 +639,16 @@ export function NewIssueDialog() {
       setSelectedExecutionWorkspaceId("");
       executionWorkspaceDefaultProjectId.current = defaultProjectId || null;
     }
-  }, [newIssueOpen, newIssueDefaults, orderedProjects]);
+  }, [newIssueOpen, newIssueDefaults, newIssueDefaultAssigneeValue, orderedProjects, selectedCompanyId]);
+
+  useEffect(() => {
+    if (!newIssueOpen || assigneeValue || !defaultCeoAssigneeValue) return;
+    if (newIssueDefaultAssigneeValue) return;
+    if (isSubIssueMode) return;
+    if (defaultCeoAssigneeAppliedRef.current) return;
+    defaultCeoAssigneeAppliedRef.current = true;
+    setAssigneeValue(defaultCeoAssigneeValue);
+  }, [assigneeValue, defaultCeoAssigneeValue, isSubIssueMode, newIssueDefaultAssigneeValue, newIssueOpen]);
 
   useEffect(() => {
     if (!supportsAssigneeOverrides) {
@@ -734,6 +756,10 @@ export function NewIssueDialog() {
       reviewerValues: reviewerValue ? [reviewerValue] : [],
       approverValues: approverValue ? [approverValue] : [],
     });
+    const submitAssignee = assigneeValue
+      ? selectedAssignee
+      : parseAssigneeValue(defaultCeoAssigneeValue);
+
     createIssue.mutate({
       companyId: effectiveCompanyId,
       stagedFiles,
@@ -741,8 +767,8 @@ export function NewIssueDialog() {
       description: description.trim() || undefined,
       status,
       priority: priority || "medium",
-      ...(selectedAssigneeAgentId ? { assigneeAgentId: selectedAssigneeAgentId } : {}),
-      ...(selectedAssigneeUserId ? { assigneeUserId: selectedAssigneeUserId } : {}),
+      ...(submitAssignee.assigneeAgentId ? { assigneeAgentId: submitAssignee.assigneeAgentId } : {}),
+      ...(submitAssignee.assigneeUserId ? { assigneeUserId: submitAssignee.assigneeUserId } : {}),
       ...(newIssueDefaults.parentId ? { parentId: newIssueDefaults.parentId } : {}),
       ...(newIssueDefaults.goalId ? { goalId: newIssueDefaults.goalId } : {}),
       ...(projectId ? { projectId } : {}),
