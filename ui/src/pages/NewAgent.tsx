@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "@/lib/router";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { agentsApi } from "../api/agents";
+import { companiesApi } from "../api/companies";
 import { companySkillsApi } from "../api/companySkills";
 import { queryKeys } from "../lib/queryKeys";
 import { AGENT_ROLES } from "@paperclipai/shared";
@@ -28,7 +29,10 @@ import { Shield } from "lucide-react";
 import { cn, agentUrl } from "../lib/utils";
 import { roleLabels } from "../components/agent-config-primitives";
 import { AgentConfigForm, type CreateConfigValues } from "../components/AgentConfigForm";
-import { defaultCreateValues } from "../components/agent-config-defaults";
+import {
+  createDefaultValuesForAdapterType,
+  defaultCreateValues,
+} from "../components/agent-config-defaults";
 import { getUIAdapter, listUIAdapters } from "../adapters";
 import { useDisabledAdaptersSync } from "../adapters/use-disabled-adapters";
 import { isValidAdapterType } from "../adapters/metadata";
@@ -38,34 +42,10 @@ import { buildNewAgentRuntimeConfig } from "../lib/new-agent-runtime-config";
 const SIMPLE_DESCRIPTION_MAX = 280;
 
 type AgentFormMode = "simple" | "advanced";
-import {
-  DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
-  DEFAULT_CODEX_LOCAL_MODEL,
-} from "@paperclipai/adapter-codex-local";
-import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
-import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
-import { DEFAULT_PI_LOCAL_MODEL } from "@paperclipai/adapter-pi-local";
-
 function createValuesForAdapterType(
   adapterType: CreateConfigValues["adapterType"],
 ): CreateConfigValues {
-  const { adapterType: _discard, ...defaults } = defaultCreateValues;
-  const nextValues: CreateConfigValues = { ...defaults, adapterType };
-  if (adapterType === "codex_local") {
-    nextValues.model = DEFAULT_CODEX_LOCAL_MODEL;
-    nextValues.dangerouslyBypassSandbox =
-      DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX;
-  } else if (adapterType === "gemini_local") {
-    nextValues.model = DEFAULT_GEMINI_LOCAL_MODEL;
-  } else if (adapterType === "cursor") {
-    nextValues.model = DEFAULT_CURSOR_LOCAL_MODEL;
-  } else if (adapterType === "pi_local") {
-    nextValues.model = DEFAULT_PI_LOCAL_MODEL;
-    nextValues.thinkingEffort = "medium";
-  } else if (adapterType === "opencode_local") {
-    nextValues.model = "";
-  }
-  return nextValues;
+  return createDefaultValuesForAdapterType(adapterType);
 }
 
 export function NewAgent() {
@@ -93,6 +73,14 @@ export function NewAgent() {
     enabled: !!selectedCompanyId,
   });
 
+  const { data: hiringPolicy } = useQuery({
+    queryKey: selectedCompanyId
+      ? queryKeys.companies.hiringPolicy(selectedCompanyId)
+      : ["companies", "none", "agent-hiring-policy"],
+    queryFn: () => companiesApi.hiringPolicy(selectedCompanyId!),
+    enabled: !!selectedCompanyId,
+  });
+
   const {
     data: adapterModels,
     error: adapterModelsError,
@@ -114,6 +102,11 @@ export function NewAgent() {
 
   const isFirstAgent = !agents || agents.length === 0;
   const effectiveRole = isFirstAgent ? "ceo" : role;
+  const policyDefaultCreateValues = useMemo(() => {
+    const adapterType = hiringPolicy?.defaultAdapterType;
+    if (!adapterType || !isValidAdapterType(adapterType)) return defaultCreateValues;
+    return createValuesForAdapterType(adapterType as CreateConfigValues["adapterType"]);
+  }, [hiringPolicy]);
 
   useEffect(() => {
     setBreadcrumbs([
@@ -139,6 +132,17 @@ export function NewAgent() {
     });
   }, [presetAdapterType]);
 
+  useEffect(() => {
+    if (presetAdapterType || !hiringPolicy?.defaultAdapterType) return;
+    setConfigValues((prev) => {
+      if (prev.adapterType === hiringPolicy.defaultAdapterType) return prev;
+      if (!isValidAdapterType(hiringPolicy.defaultAdapterType)) return prev;
+      return createValuesForAdapterType(
+        hiringPolicy.defaultAdapterType as CreateConfigValues["adapterType"],
+      );
+    });
+  }, [hiringPolicy, presetAdapterType]);
+
   const createAgent = useMutation({
     mutationFn: (data: Record<string, unknown>) =>
       agentsApi.hire(selectedCompanyId!, data),
@@ -160,7 +164,7 @@ export function NewAgent() {
   function handleSimpleSubmit() {
     if (!selectedCompanyId || !name.trim()) return;
     setFormError(null);
-    const simpleValues = defaultCreateValues;
+    const simpleValues = policyDefaultCreateValues;
     const simpleAdapter = getUIAdapter(simpleValues.adapterType);
     const description = simpleDescription.trim();
     createAgent.mutate({

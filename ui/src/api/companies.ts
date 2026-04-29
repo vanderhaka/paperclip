@@ -1,4 +1,5 @@
 import type {
+  AgentHiringPolicy,
   Company,
   CompanyPortabilityExportRequest,
   CompanyPortabilityExportPreviewResult,
@@ -41,6 +42,8 @@ export const companiesApi = {
   ) => api.patch<Company>(`/companies/${companyId}`, data),
   updateBranding: (companyId: string, data: UpdateCompanyBranding) =>
     api.patch<Company>(`/companies/${companyId}/branding`, data),
+  hiringPolicy: (companyId: string) =>
+    api.get<AgentHiringPolicy>(`/companies/${companyId}/agent-hiring-policy`),
   archive: (companyId: string) => api.post<Company>(`/companies/${companyId}/archive`, {}),
   remove: (companyId: string) => api.delete<{ ok: true }>(`/companies/${companyId}`),
   exportBundle: (

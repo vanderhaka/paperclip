@@ -5,6 +5,7 @@ import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
 import { agentsApi } from "../api/agents";
 import { adaptersApi } from "../api/adapters";
+import { companiesApi } from "../api/companies";
 import { queryKeys } from "@/lib/queryKeys";
 import {
   Dialog,
@@ -44,6 +45,14 @@ export function NewAgentDialog() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: hiringPolicy } = useQuery({
+    queryKey: selectedCompanyId
+      ? queryKeys.companies.hiringPolicy(selectedCompanyId)
+      : ["companies", "none", "agent-hiring-policy"],
+    queryFn: () => companiesApi.hiringPolicy(selectedCompanyId!),
+    enabled: !!selectedCompanyId && newAgentOpen,
+  });
+
   // Fetch existing agents for the "Ask CEO" flow
   const { data: agents } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
@@ -56,8 +65,16 @@ export function NewAgentDialog() {
   // Build the adapter grid from the UI registry merged with display metadata.
   // This automatically includes external/plugin adapters.
   const adapterGrid = useMemo(() => {
+    const disallowedTypes = new Set(
+      hiringPolicy?.disallowedAdapterTypes ?? ["openclaw_gateway"],
+    );
+    const recommendedAdapterType = hiringPolicy?.defaultAdapterType ?? "pi_local";
     const registered = listUIAdapters()
-      .filter((a) => isAgentAdapterType(a.type) && !disabledTypes.has(a.type));
+      .filter((a) =>
+        isAgentAdapterType(a.type)
+        && !disabledTypes.has(a.type)
+        && !disallowedTypes.has(a.type)
+      );
 
     // Sort: recommended first, then alphabetical
     return registered
@@ -68,7 +85,7 @@ export function NewAgentDialog() {
           label: display.label,
           desc: display.description,
           icon: display.icon,
-          recommended: display.recommended,
+          recommended: a.type === recommendedAdapterType,
           comingSoon: display.comingSoon,
           disabledLabel: display.disabledLabel,
         };
@@ -78,7 +95,7 @@ export function NewAgentDialog() {
         if (!a.recommended && b.recommended) return 1;
         return a.label.localeCompare(b.label);
       });
-  }, [disabledTypes, serverAdapters]);
+  }, [disabledTypes, hiringPolicy, serverAdapters]);
 
   function handleAskCeo() {
     closeNewAgent();

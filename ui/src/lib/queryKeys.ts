@@ -2,6 +2,7 @@ export const queryKeys = {
   companies: {
     all: ["companies"] as const,
     detail: (id: string) => ["companies", id] as const,
+    hiringPolicy: (id: string) => ["companies", id, "agent-hiring-policy"] as const,
     stats: ["companies", "stats"] as const,
   },
   companySkills: {
