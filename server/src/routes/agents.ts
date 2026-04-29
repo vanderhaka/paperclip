@@ -1452,7 +1452,6 @@ export function agentRoutes(db: Db) {
               payload: {
                 approvalId: approval.id,
                 approvalStatus: approval.status,
-                issueId: sourceIssueIds[0] ?? null,
                 issueIds: sourceIssueIds,
                 requestedByAgentId: actor.actorId,
               },
@@ -1462,9 +1461,8 @@ export function agentRoutes(db: Db) {
                 source: "approval.auto_approved",
                 approvalId: approval.id,
                 approvalStatus: approval.status,
-                issueId: sourceIssueIds[0] ?? null,
                 issueIds: sourceIssueIds,
-                taskId: sourceIssueIds[0] ?? `approval:${approval.id}`,
+                taskId: `approval:${approval.id}`,
                 taskKey: `approval:${approval.id}:hire:${agent.id}`,
                 wakeReason: "hire_approved",
                 forceFreshSession: true,

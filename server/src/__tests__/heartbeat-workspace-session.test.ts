@@ -14,6 +14,7 @@ import {
   parseSessionCompactionPolicy,
   resolveRuntimeSessionParamsForWorkspace,
   stripWorkspaceRuntimeFromExecutionRunConfig,
+  shouldAllowBlockedIssueRun,
   shouldResetTaskSessionForWake,
   type ResolvedWorkspaceForRun,
 } from "../services/heartbeat.ts";
@@ -368,6 +369,44 @@ describe("deriveTaskKeyWithHeartbeatFallback", () => {
 
   it("returns null for empty context", () => {
     expect(deriveTaskKeyWithHeartbeatFallback({}, null)).toBeNull();
+  });
+});
+
+describe("shouldAllowBlockedIssueRun", () => {
+  it("allows approval follow-up wakes to run against blocked issues", () => {
+    expect(
+      shouldAllowBlockedIssueRun({
+        issueId: "issue-1",
+        wakeReason: "approval_approved",
+        source: "approval.approved",
+      }),
+    ).toBe(true);
+  });
+
+  it("allows comment and manual retrigger wakes to re-evaluate blockers", () => {
+    expect(
+      shouldAllowBlockedIssueRun({
+        issueId: "issue-1",
+        wakeReason: "issue_commented",
+        commentId: "comment-1",
+      }),
+    ).toBe(true);
+    expect(
+      shouldAllowBlockedIssueRun({
+        issueId: "issue-1",
+        wakeReason: "issue_retriggered",
+        wakeSource: "on_demand",
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps ordinary assignment wakes held while an issue is blocked", () => {
+    expect(
+      shouldAllowBlockedIssueRun({
+        issueId: "issue-1",
+        wakeReason: "issue_assigned",
+      }),
+    ).toBe(false);
   });
 });
 

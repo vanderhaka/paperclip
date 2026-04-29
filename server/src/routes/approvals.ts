@@ -192,7 +192,6 @@ export function approvalRoutes(db: Db) {
             payload: {
               approvalId: approval.id,
               approvalStatus: approval.status,
-              issueId: primaryIssueId,
               issueIds: linkedIssueIds,
               requestedByAgentId: approval.requestedByAgentId,
             },
@@ -202,9 +201,8 @@ export function approvalRoutes(db: Db) {
               source: "approval.approved",
               approvalId: approval.id,
               approvalStatus: approval.status,
-              issueId: primaryIssueId,
               issueIds: linkedIssueIds,
-              taskId: primaryIssueId ?? `approval:${approval.id}`,
+              taskId: `approval:${approval.id}`,
               taskKey: `approval:${approval.id}:hire:${hireApprovedAgentId}`,
               wakeReason: "hire_approved",
               forceFreshSession: true,

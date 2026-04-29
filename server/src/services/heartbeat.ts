@@ -91,9 +91,45 @@ const SESSIONED_LOCAL_ADAPTERS = new Set([
   "opencode_local",
   "pi_local",
 ]);
+const BLOCKED_ISSUE_SIGNAL_WAKE_REASONS = new Set([
+  "approval_approved",
+  "approval_rejected",
+  "approval_revision_requested",
+  "execution_changes_requested",
+  "hire_approved",
+  "issue_blockers_resolved",
+  "issue_children_completed",
+  "issue_comment_mentioned",
+  "issue_commented",
+  "issue_reopened_via_comment",
+  "issue_retriggered",
+]);
 
 function isClosedIssueRunStatus(status: string | null | undefined) {
   return status === "done" || status === "cancelled";
+}
+
+export function shouldAllowBlockedIssueRun(
+  contextSnapshot: Record<string, unknown> | null | undefined,
+) {
+  const context = parseObject(contextSnapshot);
+  const wakeReason = readNonEmptyString(context.wakeReason);
+  if (wakeReason && BLOCKED_ISSUE_SIGNAL_WAKE_REASONS.has(wakeReason)) return true;
+
+  const wakeSource = readNonEmptyString(context.source);
+  if (
+    wakeSource === "approval.approved" ||
+    wakeSource === "approval.rejected" ||
+    wakeSource === "issue.comment" ||
+    wakeSource === "issue.comment.reopen" ||
+    wakeSource === "comment.mention" ||
+    wakeSource === "issue.blockers_resolved" ||
+    wakeSource === "issue.children_completed"
+  ) {
+    return true;
+  }
+
+  return Boolean(readNonEmptyString(context.commentId) || readNonEmptyString(context.wakeCommentId));
 }
 
 type RuntimeConfigSecretResolver = Pick<
@@ -2297,7 +2333,7 @@ export function heartbeatService(db: Db) {
         );
         return null;
       }
-      if (issue?.status === "blocked") {
+      if (issue?.status === "blocked" && !shouldAllowBlockedIssueRun(context)) {
         await cancelQueuedIssueRun(
           run,
           `Cancelled because issue ${issue.identifier ?? issueId} is blocked`,

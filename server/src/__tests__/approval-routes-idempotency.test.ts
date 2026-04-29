@@ -184,15 +184,14 @@ describe("approval routes idempotent retries", () => {
         reason: "hire_approved",
         payload: expect.objectContaining({
           approvalId: "approval-1",
-          issueId: "issue-1",
           issueIds: ["issue-1"],
           requestedByAgentId: "ceo-agent",
         }),
         contextSnapshot: expect.objectContaining({
           approvalId: "approval-1",
           forceFreshSession: true,
-          issueId: "issue-1",
           issueIds: ["issue-1"],
+          taskId: "approval:approval-1",
           taskKey: "approval:approval-1:hire:cto-agent",
           wakeReason: "hire_approved",
         }),
@@ -210,6 +209,8 @@ describe("approval routes idempotent retries", () => {
         }),
       }),
     );
+    expect(mockHeartbeatService.wakeup.mock.calls[0]?.[1]?.payload).not.toHaveProperty("issueId");
+    expect(mockHeartbeatService.wakeup.mock.calls[0]?.[1]?.contextSnapshot).not.toHaveProperty("issueId");
   });
 
   it("rejects approval decisions for companies outside the caller scope", async () => {
