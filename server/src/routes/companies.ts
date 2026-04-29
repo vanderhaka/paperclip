@@ -22,6 +22,7 @@ import {
   companyService,
   feedbackService,
   logActivity,
+  normalizeAgentHiringPolicy,
 } from "../services/index.js";
 import type { StorageService } from "../storage/types.js";
 import { assertBoard, assertCompanyAccess, assertInstanceAdmin, getActorInfo } from "./authz.js";
@@ -132,6 +133,17 @@ export function companyRoutes(db: Db, storage?: StorageService) {
       return;
     }
     res.json(company);
+  });
+
+  router.get("/:companyId/agent-hiring-policy", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const company = await svc.getById(companyId);
+    if (!company) {
+      res.status(404).json({ error: "Company not found" });
+      return;
+    }
+    res.json(normalizeAgentHiringPolicy(company.agentHiringPolicy));
   });
 
   router.get("/:companyId/feedback-traces", async (req, res) => {

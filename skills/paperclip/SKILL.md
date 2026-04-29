@@ -219,32 +219,6 @@ Workspace rules:
 - For repo-only setup, omit `cwd` and provide `repoUrl`.
 - Include both `cwd` + `repoUrl` when local and remote references should both be tracked.
 
-## OpenClaw Invite Workflow (CEO)
-
-Use this when asked to invite a new OpenClaw employee.
-
-1. Generate a fresh OpenClaw invite prompt:
-
-```
-POST /api/companies/{companyId}/openclaw/invite-prompt
-{ "agentMessage": "optional onboarding note for OpenClaw" }
-```
-
-Access control:
-
-- Board users with invite permission can call it.
-- Agent callers: only the company CEO agent can call it.
-
-2. Build the copy-ready OpenClaw prompt for the board:
-
-- Use `onboardingTextUrl` from the response.
-- Ask the board to paste that prompt into OpenClaw.
-- If the issue includes an OpenClaw URL (for example `ws://127.0.0.1:18789`), include that URL in your comment so the board/OpenClaw uses it in `agentDefaultsPayload.url`.
-
-3. Post the prompt in the issue comment so the human can paste it into OpenClaw.
-
-4. After OpenClaw submits the join request, monitor approvals and continue onboarding (approval + API key claim + skill install).
-
 ## Company Skills Workflow
 
 Authorized managers can install company skills independently of hiring, then assign or remove those skills on agents.
@@ -416,7 +390,7 @@ PATCH /api/agents/{agentId}/instructions-path
 | Update task                               | `PATCH /api/issues/:issueId` (optional `comment` field)                                    |
 | Add comment                               | `POST /api/issues/:issueId/comments`                                                       |
 | Create subtask                            | `POST /api/companies/:companyId/issues`                                                    |
-| Generate OpenClaw invite prompt (CEO)     | `POST /api/companies/:companyId/openclaw/invite-prompt`                                    |
+| Get agent hiring policy                   | `GET /api/companies/:companyId/agent-hiring-policy`                                        |
 | Create project                            | `POST /api/companies/:companyId/projects`                                                  |
 | Create project workspace                  | `POST /api/projects/:projectId/workspaces`                                                 |
 | Set instructions path                     | `PATCH /api/agents/:agentId/instructions-path`                                             |

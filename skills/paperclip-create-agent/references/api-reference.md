@@ -5,6 +5,7 @@
 - `GET /llms/agent-configuration.txt`
 - `GET /llms/agent-configuration/:adapterType.txt`
 - `GET /llms/agent-icons.txt`
+- `GET /api/companies/:companyId/agent-hiring-policy`
 - `GET /api/companies/:companyId/agent-configurations`
 - `GET /api/companies/:companyId/skills`
 - `POST /api/companies/:companyId/skills/import`
@@ -39,10 +40,11 @@ Request body matches agent create shape:
   "reportsTo": "uuid-or-null",
   "capabilities": "Owns architecture and engineering execution",
   "desiredSkills": ["vercel-labs/agent-browser/agent-browser"],
-  "adapterType": "claude_local",
+  "adapterType": "pi_local",
   "adapterConfig": {
     "cwd": "/absolute/path",
-    "model": "claude-sonnet-4-5-20250929",
+    "model": "deepseek/deepseek-v4-pro",
+    "thinking": "medium",
     "promptTemplate": "You are CTO..."
   },
   "runtimeConfig": {

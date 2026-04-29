@@ -18,6 +18,7 @@ import {
   issueComments,
 } from "@paperclipai/db";
 import { isUuidLike, normalizeAgentUrlKey } from "@paperclipai/shared";
+import type { AgentHiringPolicy } from "@paperclipai/shared";
 import { DEFAULT_PI_LOCAL_MODEL } from "@paperclipai/adapter-pi-local";
 import { conflict, notFound, unprocessable } from "../errors.js";
 import { normalizeAgentPermissions } from "./agent-permissions.js";
@@ -46,15 +47,30 @@ const CONFIG_REVISION_FIELDS = [
 
 type ConfigRevisionField = (typeof CONFIG_REVISION_FIELDS)[number];
 type AgentConfigSnapshot = Pick<typeof agents.$inferSelect, ConfigRevisionField>;
-type AgentPolicyCompany = Pick<typeof companies.$inferSelect, "issuePrefix" | "name">;
-type AgentPolicyExisting = Pick<typeof agents.$inferSelect, "adapterType" | "adapterConfig">;
+type AgentPolicyCompany = Pick<typeof companies.$inferSelect, "agentHiringPolicy" | "issuePrefix" | "name">;
+type AgentPolicyExisting = Pick<typeof agents.$inferSelect, "adapterType" | "adapterConfig"> & {
+  runtimeConfig?: typeof agents.$inferSelect.runtimeConfig;
+};
 type AgentPatch = Partial<typeof agents.$inferInsert>;
 
 export const EMPLOYEE_MODEL_POLICY_ADAPTER_TYPE = "pi_local";
 export const EMPLOYEE_MODEL_POLICY_MODEL = DEFAULT_PI_LOCAL_MODEL;
 export const EMPLOYEE_MODEL_POLICY_THINKING = "medium";
-const DEEPSEEK_V4_POLICY_COMPANY_PREFIXES = new Set(["JARA"]);
-const DEEPSEEK_V4_POLICY_COMPANY_NAMES = new Set(["JARVE"]);
+export const DEFAULT_AGENT_HIRING_POLICY: AgentHiringPolicy = {
+  defaultAdapterType: EMPLOYEE_MODEL_POLICY_ADAPTER_TYPE,
+  defaultAdapterConfig: {
+    model: EMPLOYEE_MODEL_POLICY_MODEL,
+    thinking: EMPLOYEE_MODEL_POLICY_THINKING,
+  },
+  defaultRuntimeConfig: {
+    heartbeat: {
+      enabled: false,
+      wakeOnDemand: true,
+    },
+  },
+  disallowedAdapterTypes: ["openclaw_gateway"],
+  enforceAdapterDefaults: true,
+};
 
 interface RevisionMetadata {
   createdByAgentId?: string | null;
@@ -82,21 +98,39 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function shouldEnforceEmployeeModelPolicy(company: AgentPolicyCompany | null | undefined): boolean {
-  if (!company) return false;
-  const normalizedName = company.name.trim().toUpperCase();
-  return (
-    DEEPSEEK_V4_POLICY_COMPANY_PREFIXES.has(company.issuePrefix)
-    || DEEPSEEK_V4_POLICY_COMPANY_NAMES.has(normalizedName)
-  );
+  return Boolean(company);
 }
 
-function isEmployeeModelPolicyCompliant(existing: AgentPolicyExisting | null | undefined): boolean {
-  if (!existing) return false;
-  const adapterConfig = isPlainRecord(existing.adapterConfig) ? existing.adapterConfig : {};
-  return (
-    existing.adapterType === EMPLOYEE_MODEL_POLICY_ADAPTER_TYPE
-    && adapterConfig.model === EMPLOYEE_MODEL_POLICY_MODEL
-  );
+export function normalizeAgentHiringPolicy(
+  raw: AgentPolicyCompany["agentHiringPolicy"] | null | undefined,
+): AgentHiringPolicy {
+  if (!isPlainRecord(raw)) return DEFAULT_AGENT_HIRING_POLICY;
+  const defaultAdapterType =
+    typeof raw.defaultAdapterType === "string" && raw.defaultAdapterType.trim().length > 0
+      ? raw.defaultAdapterType.trim()
+      : DEFAULT_AGENT_HIRING_POLICY.defaultAdapterType;
+  const defaultAdapterConfig = isPlainRecord(raw.defaultAdapterConfig)
+    ? raw.defaultAdapterConfig
+    : DEFAULT_AGENT_HIRING_POLICY.defaultAdapterConfig;
+  const defaultRuntimeConfig = isPlainRecord(raw.defaultRuntimeConfig)
+    ? raw.defaultRuntimeConfig
+    : DEFAULT_AGENT_HIRING_POLICY.defaultRuntimeConfig;
+  const disallowedAdapterTypes = Array.isArray(raw.disallowedAdapterTypes)
+    ? raw.disallowedAdapterTypes
+      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      .map((item) => item.trim())
+    : DEFAULT_AGENT_HIRING_POLICY.disallowedAdapterTypes;
+  const enforceAdapterDefaults =
+    typeof raw.enforceAdapterDefaults === "boolean"
+      ? raw.enforceAdapterDefaults
+      : DEFAULT_AGENT_HIRING_POLICY.enforceAdapterDefaults;
+  return {
+    defaultAdapterType,
+    defaultAdapterConfig,
+    defaultRuntimeConfig,
+    disallowedAdapterTypes,
+    enforceAdapterDefaults,
+  };
 }
 
 export function applyEmployeeModelPolicy(
@@ -105,31 +139,44 @@ export function applyEmployeeModelPolicy(
   existing?: AgentPolicyExisting | null,
 ): AgentPatch {
   if (!shouldEnforceEmployeeModelPolicy(company)) return data;
+  const policy = normalizeAgentHiringPolicy(company?.agentHiringPolicy);
 
   const touchesAdapter =
     Object.prototype.hasOwnProperty.call(data, "adapterType")
     || Object.prototype.hasOwnProperty.call(data, "adapterConfig");
-  if (existing && !touchesAdapter && isEmployeeModelPolicyCompliant(existing)) {
+  if (existing && !touchesAdapter) {
     return data;
   }
 
   const existingConfig = isPlainRecord(existing?.adapterConfig) ? existing.adapterConfig : {};
   const incomingConfig = isPlainRecord(data.adapterConfig) ? data.adapterConfig : {};
+  const policyConfig = isPlainRecord(policy.defaultAdapterConfig) ? policy.defaultAdapterConfig : {};
   const thinking =
     typeof incomingConfig.thinking === "string" && incomingConfig.thinking.trim().length > 0
       ? incomingConfig.thinking
       : typeof existingConfig.thinking === "string" && existingConfig.thinking.trim().length > 0
         ? existingConfig.thinking
-        : EMPLOYEE_MODEL_POLICY_THINKING;
+        : typeof policyConfig.thinking === "string" && policyConfig.thinking.trim().length > 0
+          ? policyConfig.thinking
+          : EMPLOYEE_MODEL_POLICY_THINKING;
+  const incomingAdapterType = typeof data.adapterType === "string" ? data.adapterType : existing?.adapterType;
+  const shouldApplyDefaults =
+    policy.enforceAdapterDefaults
+    || (incomingAdapterType ? policy.disallowedAdapterTypes.includes(incomingAdapterType) : false);
+  if (!shouldApplyDefaults) return data;
 
   return {
     ...data,
-    adapterType: EMPLOYEE_MODEL_POLICY_ADAPTER_TYPE,
+    adapterType: policy.defaultAdapterType,
     adapterConfig: {
       ...existingConfig,
       ...incomingConfig,
-      model: EMPLOYEE_MODEL_POLICY_MODEL,
+      ...policyConfig,
       thinking,
+    },
+    runtimeConfig: {
+      ...(isPlainRecord(data.runtimeConfig) ? data.runtimeConfig : {}),
+      ...(isPlainRecord(policy.defaultRuntimeConfig) ? policy.defaultRuntimeConfig : {}),
     },
   };
 }
@@ -319,7 +366,11 @@ export function agentService(db: Db) {
 
   async function getCompanyForAgentPolicy(companyId: string): Promise<AgentPolicyCompany | null> {
     return db
-      .select({ issuePrefix: companies.issuePrefix, name: companies.name })
+      .select({
+        issuePrefix: companies.issuePrefix,
+        name: companies.name,
+        agentHiringPolicy: companies.agentHiringPolicy,
+      })
       .from(companies)
       .where(eq(companies.id, companyId))
       .then((rows) => rows[0] ?? null);

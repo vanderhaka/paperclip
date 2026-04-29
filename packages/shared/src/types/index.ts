@@ -1,4 +1,4 @@
-export type { Company } from "./company.js";
+export type { AgentHiringPolicy, Company } from "./company.js";
 export type {
   FeedbackVote,
   FeedbackDataSharingPreference,

@@ -162,6 +162,7 @@ export {
 } from "./network-bind.js";
 
 export type {
+  AgentHiringPolicy,
   Company,
   FeedbackVote,
   FeedbackDataSharingPreference,
@@ -406,6 +407,7 @@ export {
 
 export {
   createCompanySchema,
+  agentHiringPolicySchema,
   updateCompanySchema,
   updateCompanyBrandingSchema,
   feedbackTargetTypeSchema,

@@ -492,22 +492,35 @@ POST /api/companies/{companyId}/logo     — upload logo (multipart, field: "fil
 1. `POST /api/companies/{companyId}/logo` with file upload → returns `{ assetId }`.
 2. `PATCH /api/companies/{companyId}` with `{ "logoAssetId": "<assetId>" }`.
 
-## OpenClaw Invite Prompt (CEO)
+## Agent Hiring Policy
 
-Use this endpoint to generate a short-lived OpenClaw onboarding invite prompt:
+Use this endpoint before hiring or creating agents. It is the company source of truth for default adapter/model/runtime choices and disallowed adapters.
 
 ```
-POST /api/companies/{companyId}/openclaw/invite-prompt
+GET /api/companies/{companyId}/agent-hiring-policy
+```
+
+Default response:
+
+```json
 {
-  "agentMessage": "optional note for the joining OpenClaw agent"
+  "defaultAdapterType": "pi_local",
+  "defaultAdapterConfig": {
+    "model": "deepseek/deepseek-v4-pro",
+    "thinking": "medium"
+  },
+  "defaultRuntimeConfig": {
+    "heartbeat": {
+      "enabled": false,
+      "wakeOnDemand": true
+    }
+  },
+  "disallowedAdapterTypes": ["openclaw_gateway"],
+  "enforceAdapterDefaults": true
 }
 ```
 
-Response includes invite token, onboarding text URL, and expiry metadata.
-
-Access is intentionally constrained:
-- board users with invite permission
-- CEO agent only (non-CEO agents are rejected)
+Managers and create-agent workflows must obey this policy. If the company disallows an adapter, do not use it unless the board changes the policy first.
 
 ---
 
@@ -754,7 +767,7 @@ Terminal states: `done`, `cancelled`
 | GET    | `/api/goals/:goalId`                 | Goal details       |
 | POST   | `/api/companies/:companyId/goals`    | Create goal        |
 | PATCH  | `/api/goals/:goalId`                 | Update goal        |
-| POST   | `/api/companies/:companyId/openclaw/invite-prompt` | Generate OpenClaw invite prompt (CEO/board only) |
+| GET    | `/api/companies/:companyId/agent-hiring-policy` | Get normalized company agent hiring policy |
 
 ### Routines
 

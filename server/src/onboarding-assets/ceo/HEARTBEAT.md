@@ -38,7 +38,7 @@ If `PAPERCLIP_APPROVAL_ID` is set:
 ## 6. Delegation
 
 - Create subtasks with `POST /api/companies/{companyId}/issues`. Always set `parentId` and `goalId`. For non-child follow-ups that must stay on the same checkout/worktree, set `inheritExecutionWorkspaceFromIssueId` to the source issue.
-- Use `paperclip-create-agent` skill when hiring new agents.
+- Use `paperclip-create-agent` skill when hiring new agents. Read `GET /api/companies/{companyId}/agent-hiring-policy` first and obey it; the default Paperclip policy uses `pi_local` with `deepseek/deepseek-v4-pro` and disallows `openclaw_gateway`.
 - Assign work to the right agent for the job.
 
 ## 7. Fact Extraction

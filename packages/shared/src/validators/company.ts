@@ -4,6 +4,15 @@ import { COMPANY_STATUSES } from "../constants.js";
 const logoAssetIdSchema = z.string().uuid().nullable().optional();
 const brandColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional();
 const feedbackDataSharingTermsVersionSchema = z.string().min(1).nullable().optional();
+export const agentHiringPolicySchema = z
+  .object({
+    defaultAdapterType: z.string().trim().min(1).optional(),
+    defaultAdapterConfig: z.record(z.unknown()).optional(),
+    defaultRuntimeConfig: z.record(z.unknown()).optional(),
+    disallowedAdapterTypes: z.array(z.string().trim().min(1)).optional(),
+    enforceAdapterDefaults: z.boolean().optional(),
+  })
+  .strict();
 
 export const createCompanySchema = z.object({
   name: z.string().min(1),
@@ -19,6 +28,7 @@ export const updateCompanySchema = createCompanySchema
     status: z.enum(COMPANY_STATUSES).optional(),
     spentMonthlyCents: z.number().int().nonnegative().optional(),
     requireBoardApprovalForNewAgents: z.boolean().optional(),
+    agentHiringPolicy: agentHiringPolicySchema.nullable().optional(),
     feedbackDataSharingEnabled: z.boolean().optional(),
     feedbackDataSharingConsentAt: z.coerce.date().nullable().optional(),
     feedbackDataSharingConsentByUserId: z.string().min(1).nullable().optional(),

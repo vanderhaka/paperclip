@@ -151,9 +151,11 @@ curl -sS -X POST "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/agent-h
   -d '{
     "name": "QA Browser Agent",
     "role": "qa",
-    "adapterType": "codex_local",
+    "adapterType": "pi_local",
     "adapterConfig": {
-      "cwd": "/abs/path/to/repo"
+      "cwd": "/abs/path/to/repo",
+      "model": "deepseek/deepseek-v4-pro",
+      "thinking": "medium"
     },
     "desiredSkills": [
       "agent-browser"
@@ -170,9 +172,11 @@ curl -sS -X POST "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/agents"
   -d '{
     "name": "QA Browser Agent",
     "role": "qa",
-    "adapterType": "codex_local",
+    "adapterType": "pi_local",
     "adapterConfig": {
-      "cwd": "/abs/path/to/repo"
+      "cwd": "/abs/path/to/repo",
+      "model": "deepseek/deepseek-v4-pro",
+      "thinking": "medium"
     },
     "desiredSkills": [
       "agent-browser"

@@ -1,5 +1,13 @@
 import type { CompanyStatus, PauseReason } from "../constants.js";
 
+export interface AgentHiringPolicy {
+  defaultAdapterType: string;
+  defaultAdapterConfig: Record<string, unknown>;
+  defaultRuntimeConfig: Record<string, unknown>;
+  disallowedAdapterTypes: string[];
+  enforceAdapterDefaults: boolean;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -12,6 +20,7 @@ export interface Company {
   budgetMonthlyCents: number;
   spentMonthlyCents: number;
   requireBoardApprovalForNewAgents: boolean;
+  agentHiringPolicy: AgentHiringPolicy | null;
   feedbackDataSharingEnabled: boolean;
   feedbackDataSharingConsentAt: Date | null;
   feedbackDataSharingConsentByUserId: string | null;

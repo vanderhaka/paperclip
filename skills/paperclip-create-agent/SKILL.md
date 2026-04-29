@@ -28,35 +28,44 @@ curl -sS "$PAPERCLIP_API_URL/api/agents/me" \
   -H "Authorization: Bearer $PAPERCLIP_API_KEY"
 ```
 
-2. Discover available adapter configuration docs for this Paperclip instance.
+2. Read the company hiring policy. This is the source of truth for default adapter/model/runtime choices and disallowed adapters.
+
+```sh
+curl -sS "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/agent-hiring-policy" \
+  -H "Authorization: Bearer $PAPERCLIP_API_KEY"
+```
+
+Obey this policy when drafting the hire. Do not use a disallowed adapter. If the policy enforces adapter defaults, keep the hire on the policy adapter/model unless the board explicitly changes the company policy first.
+
+3. Discover available adapter configuration docs for this Paperclip instance.
 
 ```sh
 curl -sS "$PAPERCLIP_API_URL/llms/agent-configuration.txt" \
   -H "Authorization: Bearer $PAPERCLIP_API_KEY"
 ```
 
-3. Read adapter-specific docs (example: `claude_local`).
+4. Read adapter-specific docs for the policy adapter (default: `pi_local`).
 
 ```sh
-curl -sS "$PAPERCLIP_API_URL/llms/agent-configuration/claude_local.txt" \
+curl -sS "$PAPERCLIP_API_URL/llms/agent-configuration/pi_local.txt" \
   -H "Authorization: Bearer $PAPERCLIP_API_KEY"
 ```
 
-4. Compare existing agent configurations in your company.
+5. Compare existing agent configurations in your company.
 
 ```sh
 curl -sS "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/agent-configurations" \
   -H "Authorization: Bearer $PAPERCLIP_API_KEY"
 ```
 
-5. Discover allowed agent icons and pick one that matches the role.
+6. Discover allowed agent icons and pick one that matches the role.
 
 ```sh
 curl -sS "$PAPERCLIP_API_URL/llms/agent-icons.txt" \
   -H "Authorization: Bearer $PAPERCLIP_API_KEY"
 ```
 
-6. Draft the new hire config:
+7. Draft the new hire config:
 - role/title/name
 - icon (required in practice; use one from `/llms/agent-icons.txt`)
 - reporting line (`reportsTo`)
@@ -67,8 +76,9 @@ curl -sS "$PAPERCLIP_API_URL/llms/agent-icons.txt" \
 - capabilities
 - run prompt in adapter config (`promptTemplate` where applicable)
 - source issue linkage (`sourceIssueId` or `sourceIssueIds`) when this hire came from an issue
+- Never use `openclaw_gateway` unless the board explicitly changes the company hiring policy to allow an external OpenClaw runtime.
 
-7. Submit hire request.
+8. Submit hire request.
 
 ```sh
 curl -sS -X POST "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/agent-hires" \
@@ -82,14 +92,14 @@ curl -sS -X POST "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/agent-h
     "reportsTo": "<ceo-agent-id>",
     "capabilities": "Owns technical roadmap, architecture, staffing, execution",
     "desiredSkills": ["vercel-labs/agent-browser/agent-browser"],
-    "adapterType": "codex_local",
-    "adapterConfig": {"cwd": "/abs/path/to/repo", "model": "o4-mini"},
+    "adapterType": "pi_local",
+    "adapterConfig": {"cwd": "/abs/path/to/repo", "model": "deepseek/deepseek-v4-pro", "thinking": "medium"},
     "runtimeConfig": {"heartbeat": {"enabled": false, "wakeOnDemand": true}},
     "sourceIssueId": "<issue-id>"
   }'
 ```
 
-8. Handle governance state:
+9. Handle governance state:
 - if response has `approval`, hire is `pending_approval`
 - monitor and discuss on approval thread
 - when the board approves, you will be woken with `PAPERCLIP_APPROVAL_ID`; read linked issues and close/comment follow-up
