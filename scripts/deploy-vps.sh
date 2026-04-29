@@ -11,6 +11,8 @@ PAPERCLIP_VPS_SSH_PORT="${PAPERCLIP_VPS_SSH_PORT:-${PAPERCLIP_VPS_PORT:-22}}"
 PAPERCLIP_VPS_COMPOSE_DIR="${PAPERCLIP_VPS_COMPOSE_DIR:-/docker/paperclip-4zrs}"
 PAPERCLIP_DEPLOY_SERVICE="${PAPERCLIP_DEPLOY_SERVICE:-paperclip}"
 PAPERCLIP_DEPLOY_REF="${PAPERCLIP_DEPLOY_REF:-${GITHUB_SHA:-HEAD}}"
+PAPERCLIP_DEPLOY_MIN_FREE_GB="${PAPERCLIP_DEPLOY_MIN_FREE_GB:-20}"
+PAPERCLIP_DEPLOY_PREFLIGHT_ONLY="${PAPERCLIP_DEPLOY_PREFLIGHT_ONLY:-0}"
 
 git rev-parse --verify "${PAPERCLIP_DEPLOY_REF}^{commit}" >/dev/null
 PAPERCLIP_DEPLOY_SHA="${PAPERCLIP_DEPLOY_SHA:-$(git rev-parse --short=12 "${PAPERCLIP_DEPLOY_REF}^{commit}")}"
@@ -39,16 +41,47 @@ shell_quote() {
 
 echo "Preflighting ${REMOTE}:${PAPERCLIP_VPS_COMPOSE_DIR}..."
 ssh "${SSH_OPTS[@]}" "${REMOTE}" \
-  "bash -s -- $(shell_quote "${PAPERCLIP_VPS_COMPOSE_DIR}") $(shell_quote "${PAPERCLIP_DEPLOY_SERVICE}")" <<'REMOTE_PREFLIGHT'
+  "bash -s -- $(shell_quote "${PAPERCLIP_VPS_COMPOSE_DIR}") $(shell_quote "${PAPERCLIP_DEPLOY_SERVICE}") $(shell_quote "${PAPERCLIP_DEPLOY_MIN_FREE_GB}")" <<'REMOTE_PREFLIGHT'
 set -euo pipefail
 compose_dir="$1"
 service="$2"
+min_free_gb="$3"
 
 cd "$compose_dir"
 test -f docker-compose.yml
 test -d data
 docker compose config --services | grep -Fx "$service" >/dev/null
+
+if ! [[ "$min_free_gb" =~ ^[0-9]+$ ]]; then
+  echo "PAPERCLIP_DEPLOY_MIN_FREE_GB must be a whole number, got: ${min_free_gb}" >&2
+  exit 1
+fi
+
+available_kb="$(df -Pk / | awk 'NR == 2 { print $4 }')"
+required_kb="$((min_free_gb * 1024 * 1024))"
+available_gb="$((available_kb / 1024 / 1024))"
+
+echo "Disk preflight: ${available_gb}GB free on /; require at least ${min_free_gb}GB."
+docker system df || true
+
+if (( available_kb < required_kb )); then
+  cat >&2 <<EOF
+Not enough free disk space for a VPS deploy.
+
+Free on /: ${available_gb}GB
+Required:  ${min_free_gb}GB
+
+Safe cleanup candidates are usually Docker build cache and unused old images.
+Do not delete or replace ${compose_dir}/data; it is the hosted Paperclip runtime data.
+EOF
+  exit 1
+fi
 REMOTE_PREFLIGHT
+
+if [[ "${PAPERCLIP_DEPLOY_PREFLIGHT_ONLY}" == "1" ]]; then
+  echo "Preflight-only mode complete."
+  exit 0
+fi
 
 echo "Building ${PAPERCLIP_DEPLOY_IMAGE} from ${PAPERCLIP_DEPLOY_REF} on ${PAPERCLIP_VPS_HOST}..."
 COPYFILE_DISABLE=1 git archive --format=tar "${PAPERCLIP_DEPLOY_REF}" | ssh "${SSH_OPTS[@]}" "${REMOTE}" \
