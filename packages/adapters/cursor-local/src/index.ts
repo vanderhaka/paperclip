@@ -6,6 +6,7 @@ const CURSOR_FALLBACK_MODEL_IDS = [
   "auto",
   "composer-1.5",
   "composer-1",
+  "gpt-5.5",
   "gpt-5.3-codex-low",
   "gpt-5.3-codex-low-fast",
   "gpt-5.3-codex",

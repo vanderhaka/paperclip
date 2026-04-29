@@ -85,6 +85,29 @@ describe("adapter model listing", () => {
     expect(models).toEqual(opencodeFallbackModels);
   });
 
+  it("lists GPT-5.5 in OpenAI-backed fallback model options", async () => {
+    process.env.PAPERCLIP_OPENCODE_COMMAND = "__paperclip_missing_opencode_command__";
+    setCursorModelsRunnerForTests(() => ({
+      status: null,
+      stdout: "",
+      stderr: "",
+      hasError: true,
+    }));
+
+    await expect(listAdapterModels("codex_local")).resolves.toContainEqual({
+      id: "gpt-5.5",
+      label: "gpt-5.5",
+    });
+    await expect(listAdapterModels("cursor")).resolves.toContainEqual({
+      id: "gpt-5.5",
+      label: "gpt-5.5",
+    });
+    await expect(listAdapterModels("opencode_local")).resolves.toContainEqual({
+      id: "openai/gpt-5.5",
+      label: "openai/gpt-5.5",
+    });
+  });
+
   it("loads cursor models dynamically and caches them", async () => {
     const runner = vi.fn(() => ({
       status: 0,
