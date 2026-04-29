@@ -257,6 +257,7 @@ describe("agent permission routes", () => {
           heartbeat: {
             enabled: false,
             intervalSec: 3600,
+            wakeOnDemand: true,
           },
         },
       }),
@@ -294,6 +295,7 @@ describe("agent permission routes", () => {
           heartbeat: {
             enabled: false,
             intervalSec: 3600,
+            wakeOnDemand: true,
           },
         },
       }),

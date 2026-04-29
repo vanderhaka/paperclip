@@ -469,6 +469,9 @@ export function agentRoutes(db: Db) {
     if (parseBooleanLike(heartbeat.enabled) == null) {
       heartbeat.enabled = false;
     }
+    if (parseBooleanLike(heartbeat.wakeOnDemand) == null) {
+      heartbeat.wakeOnDemand = true;
+    }
 
     normalizedRuntimeConfig.heartbeat = heartbeat;
     return normalizedRuntimeConfig;

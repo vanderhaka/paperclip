@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { buildNewAgentRuntimeConfig } from "./new-agent-runtime-config";
 
 describe("buildNewAgentRuntimeConfig", () => {
-  it("defaults new agents to no timer heartbeat", () => {
+  it("defaults new agents to no timer heartbeat with assignment wakes enabled", () => {
     expect(buildNewAgentRuntimeConfig()).toEqual({
       heartbeat: {
         enabled: false,
         intervalSec: 300,
-        wakeOnDemand: false,
+        wakeOnDemand: true,
         cooldownSec: 10,
         maxConcurrentRuns: 1,
       },
@@ -25,7 +25,7 @@ describe("buildNewAgentRuntimeConfig", () => {
       heartbeat: {
         enabled: true,
         intervalSec: 3600,
-        wakeOnDemand: false,
+        wakeOnDemand: true,
         cooldownSec: 10,
         maxConcurrentRuns: 1,
       },

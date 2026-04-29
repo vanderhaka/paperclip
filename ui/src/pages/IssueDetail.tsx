@@ -118,6 +118,14 @@ function keepPreviousData<T>(previousData: T | undefined) {
   return previousData;
 }
 
+function hasAutomaticAssignmentWakesDisabled(agent: Agent | null | undefined): boolean {
+  const runtimeConfig = agent?.runtimeConfig;
+  if (!runtimeConfig || typeof runtimeConfig !== "object" || Array.isArray(runtimeConfig)) return false;
+  const heartbeat = (runtimeConfig as Record<string, unknown>).heartbeat;
+  if (!heartbeat || typeof heartbeat !== "object" || Array.isArray(heartbeat)) return false;
+  return (heartbeat as Record<string, unknown>).wakeOnDemand === false;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
@@ -620,6 +628,9 @@ export function IssueDetail() {
     if (assignedIssueAgent?.status === "paused") return "The assigned agent is paused.";
     if (assignedIssueAgent?.status === "pending_approval") return "The assigned agent is still pending approval.";
     if (assignedIssueAgent?.status === "terminated") return "The assigned agent has been terminated.";
+    if (hasAutomaticAssignmentWakesDisabled(assignedIssueAgent)) {
+      return "The assigned agent has automatic assignment wakes disabled.";
+    }
     return "This assigned issue has no live run right now.";
   })();
   const canRetriggerIssue = Boolean(

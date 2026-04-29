@@ -119,6 +119,7 @@ interface Agent {
   name: string;
   role?: string | null;
   status?: string | null;
+  runtimeConfig?: unknown;
 }
 
 type ProjectOption = Pick<Project, "id" | "name"> & Partial<Pick<Project, "color" | "workspaces" | "executionWorkspacePolicy" | "primaryWorkspace">>;
@@ -219,7 +220,16 @@ function issueTriggerExplanation(issue: Issue, agents?: Agent[], isLive?: boolea
   if (assignee?.status === "paused") return "Not triggered: agent paused";
   if (assignee?.status === "pending_approval") return "Not triggered: agent pending approval";
   if (assignee?.status === "terminated") return "Not triggered: agent terminated";
+  if (hasAutomaticAssignmentWakesDisabled(assignee)) return "Not triggered: auto wake disabled";
   return "Not triggered: idle";
+}
+
+function hasAutomaticAssignmentWakesDisabled(agent: Agent | null | undefined): boolean {
+  const runtimeConfig = agent?.runtimeConfig;
+  if (!runtimeConfig || typeof runtimeConfig !== "object" || Array.isArray(runtimeConfig)) return false;
+  const heartbeat = (runtimeConfig as Record<string, unknown>).heartbeat;
+  if (!heartbeat || typeof heartbeat !== "object" || Array.isArray(heartbeat)) return false;
+  return (heartbeat as Record<string, unknown>).wakeOnDemand === false;
 }
 
 function IssueTriggerExplanationPill({
