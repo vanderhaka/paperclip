@@ -43,9 +43,21 @@ export function Approvals() {
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => approvalsApi.approve(id),
-    onSuccess: (_approval, id) => {
+    onSuccess: (approval, id) => {
       setActionError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(selectedCompanyId!) });
+      const companyId = approval.companyId ?? selectedCompanyId;
+      const linkedAgentId = typeof approval.payload?.agentId === "string" ? approval.payload.agentId : null;
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(companyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(companyId!, "pending") });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(companyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(companyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(companyId!) });
+      if (linkedAgentId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(linkedAgentId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.runtimeState(linkedAgentId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(companyId!, linkedAgentId) });
+      }
       navigate(`/approvals/${id}?resolved=approved`);
     },
     onError: (err) => {

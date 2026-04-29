@@ -120,7 +120,7 @@ Headers: X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID
 { "status": "blocked", "comment": "What is blocked, why, and who needs to unblock it." }
 ```
 
-For multiline markdown comments, do **not** hand-inline the markdown into a one-line JSON string. That is how comments get "smooshed" together. Use the helper below or an equivalent `jq --arg` pattern so literal newlines survive JSON encoding:
+For multiline markdown comments, do **not** hand-inline the markdown into a one-line JSON string. That is how comments get "smooshed" together. Prefer the helper below so literal newlines survive JSON encoding without relying on optional shell tools:
 
 ```bash
 scripts/paperclip-issue-update.sh --issue-id "$PAPERCLIP_TASK_ID" --status done <<'MD'
@@ -300,7 +300,7 @@ Investigating comment formatting
 MD
 ```
 
-If you cannot use the helper, use `jq -n --arg comment "$comment"` with `comment` read from a heredoc or file. Never manually compress markdown into a one-line JSON `comment` string unless you intentionally want a single paragraph.
+If you cannot use the helper, use any available JSON encoder that preserves literal newlines. `jq -n --arg comment "$comment"` is fine when `jq` is installed; otherwise use `node -e '...'`, `python3 -c '...'`, or an equivalent structured encoder. Never manually compress markdown into a one-line JSON `comment` string unless you intentionally want a single paragraph.
 
 Example:
 

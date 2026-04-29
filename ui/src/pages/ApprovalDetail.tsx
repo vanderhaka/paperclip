@@ -70,25 +70,36 @@ export function ApprovalDetail() {
     ]);
   }, [setBreadcrumbs, approval, approvalId]);
 
-  const refresh = () => {
+  const refresh = (latestApproval = approval) => {
     if (!approvalId) return;
     queryClient.invalidateQueries({ queryKey: queryKeys.approvals.detail(approvalId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.approvals.comments(approvalId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.approvals.issues(approvalId) });
-    if (approval?.companyId) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(approval.companyId) });
+    if (latestApproval?.companyId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(latestApproval.companyId) });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals.list(approval.companyId, "pending"),
+        queryKey: queryKeys.approvals.list(latestApproval.companyId, "pending"),
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(approval.companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(latestApproval.companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(latestApproval.companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(latestApproval.companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(latestApproval.companyId) });
+      const linkedAgentId = typeof latestApproval.payload?.agentId === "string"
+        ? latestApproval.payload.agentId
+        : null;
+      if (linkedAgentId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(linkedAgentId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.runtimeState(linkedAgentId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(latestApproval.companyId, linkedAgentId) });
+      }
     }
   };
 
   const approveMutation = useMutation({
     mutationFn: () => approvalsApi.approve(approvalId!),
-    onSuccess: () => {
+    onSuccess: (approvedApproval) => {
       setError(null);
-      refresh();
+      refresh(approvedApproval);
       navigate(`/approvals/${approvalId}?resolved=approved`, { replace: true });
     },
     onError: (err) => setError(err instanceof Error ? err.message : "Approve failed"),

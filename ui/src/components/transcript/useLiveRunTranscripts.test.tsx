@@ -5,13 +5,19 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useLiveRunTranscripts } from "./useLiveRunTranscripts";
 
-const { useQueryMock, logMock } = vi.hoisted(() => ({
+const { useQueryMock, useQueryClientMock, queryClientMock, logMock } = vi.hoisted(() => ({
   useQueryMock: vi.fn(() => ({ data: { censorUsernameInLogs: false } })),
+  queryClientMock: {
+    invalidateQueries: vi.fn(),
+    setQueryData: vi.fn(),
+  },
+  useQueryClientMock: vi.fn(),
   logMock: vi.fn(async () => ({ runId: "run-1", store: "memory", logRef: "log-1", content: "", nextOffset: 0 })),
 }));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: useQueryMock,
+  useQueryClient: useQueryClientMock,
 }));
 
 vi.mock("../../api/instanceSettings", () => ({
@@ -72,6 +78,9 @@ describe("useLiveRunTranscripts", () => {
   beforeEach(() => {
     FakeWebSocket.instances = [];
     useQueryMock.mockClear();
+    queryClientMock.invalidateQueries.mockClear();
+    queryClientMock.setQueryData.mockClear();
+    useQueryClientMock.mockReturnValue(queryClientMock);
     logMock.mockClear();
     globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
   });
@@ -113,6 +122,51 @@ describe("useLiveRunTranscripts", () => {
     });
 
     expect(socket.closeCalls).toEqual([{ code: 1000, reason: "live_run_transcripts_unmount" }]);
+    container.remove();
+  });
+
+  it("updates run caches when a live status event arrives", async () => {
+    function Harness() {
+      useLiveRunTranscripts({
+        companyId: "company-1",
+        runs: [{ id: "run-1", status: "running", adapterType: "codex_local" }],
+      });
+      return null;
+    }
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<Harness />);
+      await Promise.resolve();
+    });
+
+    const socket = FakeWebSocket.instances[0];
+    act(() => {
+      socket.onmessage?.(
+        new MessageEvent("message", {
+          data: JSON.stringify({
+            type: "heartbeat.run.status",
+            companyId: "company-1",
+            createdAt: "2026-04-29T00:00:00.000Z",
+            payload: {
+              runId: "run-1",
+              status: "succeeded",
+              finishedAt: "2026-04-29T00:00:01.000Z",
+            },
+          }),
+        }),
+      );
+    });
+
+    expect(queryClientMock.setQueryData).toHaveBeenCalled();
+    expect(queryClientMock.invalidateQueries).toHaveBeenCalled();
+
+    act(() => {
+      root.unmount();
+    });
     container.remove();
   });
 

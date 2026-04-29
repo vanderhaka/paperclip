@@ -469,6 +469,16 @@ export function NewIssueDialog() {
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.listTouchedByMe(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.listUnreadTouchedByMe(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.liveRuns(issue.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.activeRun(issue.id) });
+      if (issue.assigneeAgentId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(companyId, issue.assigneeAgentId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(issue.assigneeAgentId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.runtimeState(issue.assigneeAgentId) });
+      }
       if (draftTimer.current) clearTimeout(draftTimer.current);
       if (failures.length > 0) {
         const prefix = (companies.find((company) => company.id === companyId)?.issuePrefix ?? "").trim();

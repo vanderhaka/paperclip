@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LiveEvent } from "@paperclipai/shared";
 import { instanceSettingsApi } from "../../api/instanceSettings";
 import { heartbeatsApi } from "../../api/heartbeats";
@@ -71,6 +71,7 @@ export function useLiveRunTranscripts({
   companyId,
   maxChunksPerRun = 200,
 }: UseLiveRunTranscriptsOptions) {
+  const queryClient = useQueryClient();
   const runsKey = useMemo(
     () =>
       runs
@@ -289,6 +290,20 @@ export function useLiveRunTranscripts({
             chunk: `run ${status}`,
             dedupeKey: `socket:status:${runId}:${status}:${readString(payload["finishedAt"]) ?? ""}`,
           }]);
+          queryClient.setQueryData(queryKeys.runDetail(runId), (current: unknown) => {
+            if (!current || typeof current !== "object") return current;
+            return {
+              ...current,
+              status,
+              finishedAt: readString(payload["finishedAt"]) ?? (current as { finishedAt?: unknown }).finishedAt,
+            };
+          });
+          if (isTerminalStatus(status)) {
+            queryClient.invalidateQueries({ queryKey: queryKeys.runDetail(runId) });
+            if (companyId) {
+              queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(companyId) });
+            }
+          }
         }
       };
 
@@ -322,7 +337,7 @@ export function useLiveRunTranscripts({
         }
       }
     };
-  }, [activeRunIds, companyId, runById]);
+  }, [activeRunIds, companyId, queryClient, runById]);
 
   const transcriptByRun = useMemo(() => {
     const next = new Map<string, TranscriptEntry[]>();

@@ -107,6 +107,10 @@ const runStatusIcons: Record<string, { icon: typeof CheckCircle2; color: string 
   cancelled: { icon: Slash, color: "text-neutral-500 dark:text-neutral-400" },
 };
 
+function isTerminalRunStatus(status: string) {
+  return status === "succeeded" || status === "failed" || status === "timed_out" || status === "cancelled";
+}
+
 const REDACTED_ENV_VALUE = "***REDACTED***";
 const SECRET_ENV_KEY_RE =
   /(api[-_]?key|access[-_]?token|auth(?:_?token)?|authorization|bearer|secret|passwd|password|credential|jwt|private[-_]?key|cookie|connectionstring)/i;
@@ -3416,6 +3420,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
 /* ---- Log Viewer ---- */
 
 function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: string }) {
+  const queryClient = useQueryClient();
   const [events, setEvents] = useState<HeartbeatRunEvent[]>([]);
   const [logLines, setLogLines] = useState<Array<{ ts: string; stream: "stdout" | "stderr" | "system"; chunk: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -3712,6 +3717,30 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
           return;
         }
 
+        if (event.type === "heartbeat.run.status") {
+          const nextStatus = asNonEmptyString(payload.status);
+          if (!nextStatus) return;
+          const finishedAt = asNonEmptyString(payload.finishedAt);
+          queryClient.setQueryData<HeartbeatRun>(queryKeys.runDetail(run.id), (current) => {
+            if (!current) return current;
+            return {
+              ...current,
+              status: nextStatus as HeartbeatRun["status"],
+              finishedAt: finishedAt ? new Date(finishedAt) : current.finishedAt,
+            };
+          });
+          if (isTerminalRunStatus(nextStatus)) {
+            queryClient.invalidateQueries({ queryKey: queryKeys.runDetail(run.id) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.companyId, run.agentId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.companyId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(run.companyId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(run.agentId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.agents.runtimeState(run.agentId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(run.companyId) });
+          }
+          return;
+        }
+
         if (event.type !== "heartbeat.run.event") return;
 
         const seq = typeof payload.seq === "number" ? payload.seq : null;
@@ -3773,7 +3802,7 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
         socket.close(1000, "run_detail_unmount");
       }
     };
-  }, [isLive, run.companyId, run.id, run.agentId]);
+  }, [isLive, queryClient, run.companyId, run.id, run.agentId]);
 
   const censorUsernameInLogs = useQuery({
     queryKey: queryKeys.instance.generalSettings,
